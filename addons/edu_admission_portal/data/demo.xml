@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- Ajouter l'utilisateur admin aux groupes -->
+        <record id="base.user_admin" model="res.users">
+            <field name="groups_id" eval="[(4, ref('edu_admission_portal.group_admission_admin'))]"/>
+        </record>
+
+        <!-- Créer un utilisateur de test pour l'évaluateur -->
+        <record id="admission_reviewer_user" model="res.users">
+            <field name="name">Évaluateur Test</field>
+            <field name="login">evaluateur</field>
+            <field name="password">evaluateur</field>
+            <field name="groups_id" eval="[(4, ref('base.group_user')), (4, ref('edu_admission_portal.group_admission_reviewer'))]"/>
+        </record>
+    </data>
+</odoo> 

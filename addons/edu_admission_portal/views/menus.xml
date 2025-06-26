@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Menu racine -->
+    <menuitem id="menu_admission_root"
+              name="Admissions"
+              sequence="10"/>
+
+    <!-- Menu du tableau de bord -->
+    <menuitem id="menu_admission_dashboard"
+              name="Tableau de Bord"
+              parent="menu_admission_root"
+              action="action_admission_dashboard"
+              sequence="1"/>
+
+    <!-- Menu des candidats -->
+    <menuitem id="menu_admission_candidates"
+              name="Candidats"
+              parent="menu_admission_root"
+              action="action_admission_candidate"
+              sequence="10"/>
+
+    <!-- Menu des formulaires -->
+    <menuitem id="menu_admission_forms"
+              name="Formulaires"
+              parent="menu_admission_root"
+              action="action_admission_form_template"
+              sequence="20"/>
+
+    <!-- Menu de configuration -->
+    <menuitem id="menu_admission_configuration"
+              name="Configuration"
+              parent="menu_admission_root"
+              sequence="100"/>
+
+    <!-- Sous-menus de configuration -->
+    <menuitem id="menu_limesurvey_server"
+              name="Serveurs LimeSurvey"
+              parent="menu_admission_configuration"
+              action="action_limesurvey_server"
+              sequence="10"/>
+</odoo> 

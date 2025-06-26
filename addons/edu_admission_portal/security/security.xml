@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Module Category -->
+    <record id="module_category_admission" model="ir.module.category">
+        <field name="name">Admissions</field>
+        <field name="description">Gestion des admissions</field>
+        <field name="sequence">20</field>
+    </record>
+
+    <!-- Security Groups -->
+    <record id="group_admission_admin" model="res.groups">
+        <field name="name">Administrateur Admissions</field>
+        <field name="category_id" ref="module_category_admission"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+        <field name="users" eval="[(4, ref('base.user_admin'))]"/>
+    </record>
+
+    <record id="group_admission_reviewer" model="res.groups">
+        <field name="name">Évaluateur Admissions</field>
+        <field name="category_id" ref="module_category_admission"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <!-- Global Rule - Allow access to both groups -->
+    <record id="rule_admission_global_access" model="ir.rule">
+        <field name="name">Accès Global aux Admissions</field>
+        <field name="model_id" ref="model_admission_candidate"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('group_admission_admin')), (4, ref('group_admission_reviewer'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <!-- LimeSurvey Server Config - Global Access -->
+    <record id="rule_limesurvey_global_access" model="ir.rule">
+        <field name="name">Accès Global LimeSurvey</field>
+        <field name="model_id" ref="model_limesurvey_server_config"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('group_admission_admin')), (4, ref('group_admission_reviewer'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <!-- Form Templates - Global Access -->
+    <record id="rule_form_template_global_access" model="ir.rule">
+        <field name="name">Accès Global aux Formulaires</field>
+        <field name="model_id" ref="model_admission_form_template"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('group_admission_admin')), (4, ref('group_admission_reviewer'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+</odoo> 

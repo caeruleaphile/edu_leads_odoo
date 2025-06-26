@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Dashboard Kanban View -->
+    <record id="view_admission_dashboard_kanban" model="ir.ui.view">
+        <field name="name">admission.dashboard.kanban</field>
+        <field name="model">admission.candidate</field>
+        <field name="arch" type="xml">
+            <kanban class="o_admission_dashboard" create="false">
+                <field name="id"/>
+                <templates>
+                    <t t-name="kanban-box">
+                        <div class="container-fluid o_admission_dashboard">
+                            <!-- KPIs Row -->
+                            <div class="row">
+                                <div class="col-lg-3 col-sm-6">
+                                    <div class="o_aggregate card bg-info">
+                                        <div class="o_value text-white">
+                                            <field name="total_candidates" widget="statinfo"/>
+                                        </div>
+                                        <div class="o_label text-white">
+                                            Candidats Totaux
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-lg-3 col-sm-6">
+                                    <div class="o_aggregate card bg-success">
+                                        <div class="o_value text-white">
+                                            <field name="accepted_candidates" widget="statinfo"/>
+                                        </div>
+                                        <div class="o_label text-white">
+                                            Candidats Acceptés
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-lg-3 col-sm-6">
+                                    <div class="o_aggregate card bg-warning">
+                                        <div class="o_value text-white">
+                                            <field name="pending_candidates" widget="statinfo"/>
+                                        </div>
+                                        <div class="o_label text-white">
+                                            Candidats en Attente
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-lg-3 col-sm-6">
+                                    <div class="o_aggregate card bg-danger">
+                                        <div class="o_value text-white">
+                                            <field name="refused_candidates" widget="statinfo"/>
+                                        </div>
+                                        <div class="o_label text-white">
+                                            Candidats Refusés
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Graphs Row -->
+                            <div class="row mt-4">
+                                <!-- Status Distribution -->
+                                <div class="col-lg-6">
+                                    <div class="o_graph card">
+                                        <div class="card-header">
+                                            <h4>Distribution par Statut</h4>
+                                        </div>
+                                        <div class="card-body">
+                                            <field name="status_distribution" widget="pie_chart"/>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Timeline -->
+                                <div class="col-lg-6">
+                                    <div class="o_graph card">
+                                        <div class="card-header">
+                                            <h4>Évolution des Candidatures</h4>
+                                        </div>
+                                        <div class="card-body">
+                                            <field name="submission_timeline" widget="line_chart"/>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Analysis Row -->
+                            <div class="row mt-4">
+                                <!-- Form Distribution -->
+                                <div class="col-lg-6">
+                                    <div class="o_graph card">
+                                        <div class="card-header">
+                                            <h4>Candidatures par Formulaire</h4>
+                                        </div>
+                                        <div class="card-body">
+                                            <field name="form_distribution" widget="bar_chart"/>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Academic Level -->
+                                <div class="col-lg-6">
+                                    <div class="o_graph card">
+                                        <div class="card-header">
+                                            <h4>Distribution par Niveau</h4>
+                                        </div>
+                                        <div class="card-body">
+                                            <field name="academic_level_distribution" widget="bar_chart"/>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- Dashboard Search View -->
+    <record id="view_admission_dashboard_search" model="ir.ui.view">
+        <field name="name">admission.dashboard.search</field>
+        <field name="model">admission.candidate</field>
+        <field name="arch" type="xml">
+            <search string="Analyse des Admissions">
+                <field name="name"/>
+                <field name="form_id"/>
+                <separator/>
+                <filter string="Cette Année" name="this_year" 
+                        domain="[('submission_date', '&gt;=', (context_today() + relativedelta(years=-1)).strftime('%Y-%m-%d'))]"/>
+                <filter string="Ce Mois" name="this_month"
+                        domain="[('submission_date', '&gt;=', (context_today() + relativedelta(months=-1)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <filter string="Niveau BAC" name="bac_level" 
+                        domain="[('academic_level', '=', 'bac')]"/>
+                <filter string="Niveau BAC+2" name="bac2_level" 
+                        domain="[('academic_level', '=', 'bac+2')]"/>
+                <filter string="Niveau BAC+3" name="bac3_level" 
+                        domain="[('academic_level', '=', 'bac+3')]"/>
+                <separator/>
+                <filter string="Dossiers Complets" name="complete_files" 
+                        domain="[('is_complete', '=', True)]"/>
+                <group expand="0" string="Regrouper Par">
+                    <filter string="Formulaire" name="group_by_form" context="{'group_by': 'form_id'}"/>
+                    <filter string="Statut" name="group_by_status" context="{'group_by': 'status'}"/>
+                    <filter string="Niveau" name="group_by_level" context="{'group_by': 'academic_level'}"/>
+                    <filter string="Mois" name="group_by_month" context="{'group_by': 'submission_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Dashboard Action -->
+    <record id="action_admission_dashboard" model="ir.actions.act_window">
+        <field name="name">Tableau de Bord Admissions</field>
+        <field name="res_model">admission.candidate</field>
+        <field name="view_mode">kanban</field>
+        <field name="view_id" ref="view_admission_dashboard_kanban"/>
+        <field name="search_view_id" ref="view_admission_dashboard_search"/>
+        <field name="context">{
+            'search_default_this_year': 1,
+        }</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Aucune donnée à afficher
+            </p>
+            <p>
+                Les statistiques apparaîtront ici une fois que vous aurez des candidatures.
+            </p>
+        </field>
+    </record>
+</odoo> 

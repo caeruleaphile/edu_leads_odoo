@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config>
+    <metadata>
+        <name>WebhookSubmit</name>
+        <type>plugin</type>
+        <creationDate>2024-01-01</creationDate>
+        <lastUpdate>2024-03-19</lastUpdate>
+        <author>Odoo Admission Portal</author>
+        <authorUrl>https://www.odoo.com</authorUrl>
+        <version>1.0.0</version>
+        <license>GPL v3</license>
+        <description><![CDATA[Plugin pour l'envoi des réponses à Odoo via webhook]]></description>
+    </metadata>
+    <compatibility>
+        <version>4.0</version>
+        <version>5.0</version>
+        <version>6.0</version>
+    </compatibility>
+    <files>
+        <filename>WebhookSubmit.php</filename>
+        <filename>config.xml</filename>
+        <filename>helpers/CsrfHelper.php</filename>
+    </files>
+    <updaters disabled="disabled"> </updaters>
+    <settings>
+        <setting>
+            <name>webhook_url</name>
+            <type>string</type>
+            <label>URL du Webhook</label>
+            <default>http://localhost:8069/admission/webhook/submit</default>
+        </setting>
+        <setting>
+            <name>webhook_token</name>
+            <type>string</type>
+            <label>Token de Sécurité</label>
+            <help>Token de sécurité pour l'authentification avec Odoo</help>
+            <default/>
+        </setting>
+        <setting>
+            <name>include_files</name>
+            <type>boolean</type>
+            <label>Inclure les Fichiers</label>
+            <help>Inclure les fichiers uploadés dans le payload du webhook</help>
+            <default>1</default>
+        </setting>
+        <setting>
+            <name>log_errors</name>
+            <type>boolean</type>
+            <label>Logger les Erreurs</label>
+            <help>Enregistrer les erreurs dans les logs de LimeSurvey</help>
+            <default>1</default>
+        </setting>
+        <setting>
+            <name>retry_count</name>
+            <type>int</type>
+            <label>Nombre de Tentatives</label>
+            <help>Nombre de tentatives en cas d'échec d'envoi</help>
+            <default>3</default>
+        </setting>
+    </settings>
+    <surveys>
+        <survey>
+            <setting>
+                <name>usecookie</name>
+                <value>N</value>
+            </setting>
+            <setting>
+                <name>allowregister</name>
+                <value>N</value>
+            </setting>
+            <setting>
+                <name>allowsave</name>
+                <value>Y</value>
+            </setting>
+            <setting>
+                <name>anonymized</name>
+                <value>N</value>
+            </setting>
+            <setting>
+                <name>tokenanswerspersistence</name>
+                <value>N</value>
+            </setting>
+            <setting>
+                <name>usecaptcha</name>
+                <value>N</value>
+            </setting>
+            <setting>
+                <name>listpublic</name>
+                <value>Y</value>
+            </setting>
+            <setting>
+                <name>publicstatistics</name>
+                <value>N</value>
+            </setting>
+            <setting>
+                <name>printanswers</name>
+                <value>N</value>
+            </setting>
+            <setting>
+                <name>publicgraphs</name>
+                <value>N</value>
+            </setting>
+            <setting>
+                <name>assessments</name>
+                <value>N</value>
+            </setting>
+            <setting>
+                <name>usetokens</name>
+                <value>N</value>
+            </setting>
+            <setting>
+                <name>showwelcome</name>
+                <value>N</value>
+            </setting>
+            <setting>
+                <name>showprogress</name>
+                <value>Y</value>
+            </setting>
+            <setting>
+                <name>questionindex</name>
+                <value>0</value>
+            </setting>
+            <setting>
+                <name>navigationdelay</name>
+                <value>0</value>
+            </setting>
+            <setting>
+                <name>nokeyboard</name>
+                <value>N</value>
+            </setting>
+            <setting>
+                <name>allowprev</name>
+                <value>Y</value>
+            </setting>
+            <setting>
+                <name>format</name>
+                <value>G</value>
+            </setting>
+            <setting>
+                <name>template</name>
+                <value>default</value>
+            </setting>
+            <setting>
+                <name>surveymode</name>
+                <value>open</value>
+            </setting>
+        </survey>
+    </surveys>
+</config> 

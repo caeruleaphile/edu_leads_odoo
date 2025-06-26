@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Form View -->
+    <record id="view_limesurvey_server_config_form" model="ir.ui.view">
+        <field name="name">limesurvey.server.config.form</field>
+        <field name="model">limesurvey.server.config</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_test_connection" 
+                            string="Tester la Connexion" 
+                            type="object" 
+                            class="oe_highlight"/>
+                    <button name="action_sync_forms" 
+                            string="Synchroniser les Formulaires" 
+                            type="object" 
+                            class="btn-primary"
+                            invisible="connection_status != 'connected'"/>
+                    <button name="action_force_delete" 
+                            string="Supprimer Définitivement" 
+                            type="object" 
+                            class="btn-danger"
+                            confirm="Attention ! Cette action est irréversible. Tous les templates liés seront archivés. Voulez-vous vraiment supprimer définitivement cette configuration ?"
+                            invisible="active"/>
+                    <field name="connection_status" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <widget name="web_ribbon" title="Archivé" bg_color="bg-danger" invisible="active"/>
+                    <div class="oe_title">
+                        <label for="name" class="oe_edit_only"/>
+                        <h1><field name="name" placeholder="Nom du serveur"/></h1>
+                    </div>
+                    <group>
+                        <group string="CONFIGURATION DU SERVEUR">
+                            <field name="base_url" 
+                                   placeholder="http://localhost/limesurvey"
+                                   help="URL de base du serveur LimeSurvey (ex: http://localhost/limesurvey). Ne pas inclure /index.php"/>
+                            <field name="api_username"/>
+                            <field name="api_password" password="True"/>
+                        </group>
+                        <group string="CONFIGURATION WEBHOOK">
+                            <field name="webhook_token" password="True"/>
+                            <button name="generate_webhook_token" string="Générer Token" type="object" class="oe_highlight"/>
+                        </group>
+                    </group>
+                    <group string="INFORMATIONS">
+                        <field name="last_sync_date"/>
+                        <field name="active" invisible="1"/>
+                    </group>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <!-- Vue liste -->
+    <record id="view_limesurvey_server_tree" model="ir.ui.view">
+        <field name="name">limesurvey.server.config.tree</field>
+        <field name="model">limesurvey.server.config</field>
+        <field name="arch" type="xml">
+            <tree decoration-muted="not active" decoration-danger="connection_status == 'failed'" decoration-success="connection_status == 'connected'" decoration-info="connection_status == 'not_tested'">
+                <field name="active" invisible="0" widget="boolean_toggle"/>
+                <button name="action_force_delete" 
+                        type="object" 
+                        icon="fa-trash" 
+                        class="text-danger oe_highlight"
+                        help="Supprimer définitivement"
+                        confirm="Attention ! Cette action est irréversible. Tous les templates liés seront archivés. Voulez-vous vraiment supprimer définitivement cette configuration ?"
+                        invisible="active"/>
+                <field name="name" string="Nom du serveur"/>
+                <field name="base_url" string="URL du serveur" widget="url"/>
+                <field name="connection_status" string="Statut" widget="badge" decoration-success="connection_status == 'connected'" decoration-danger="connection_status == 'failed'" decoration-info="connection_status == 'not_tested'"/>
+                <field name="last_sync_date" string="Dernière synchronisation" widget="datetime"/>
+                <button name="action_test_connection" 
+                        type="object" 
+                        icon="fa-refresh" 
+                        class="btn btn-link"
+                        help="Tester la connexion"/>
+                <button name="action_sync_forms" 
+                        type="object" 
+                        icon="fa-download" 
+                        class="btn btn-link"
+                        help="Synchroniser les formulaires"
+                        invisible="connection_status != 'connected'"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- Vue recherche -->
+    <record id="view_limesurvey_server_search" model="ir.ui.view">
+        <field name="name">limesurvey.server.config.search</field>
+        <field name="model">limesurvey.server.config</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="base_url"/>
+                <filter string="Archivé" name="inactive" domain="[('active', '=', False)]"/>
+                <separator/>
+                <filter string="Actif" name="active" domain="[('active', '=', True)]"/>
+                <separator/>
+                <filter string="Connecté" name="connected" domain="[('connection_status', '=', 'connected')]"/>
+                <filter string="Non Testé" name="not_tested" domain="[('connection_status', '=', 'not_tested')]"/>
+                <filter string="Échec" name="failed" domain="[('connection_status', '=', 'failed')]"/>
+                <group expand="0" string="Regrouper par">
+                    <filter string="Statut" name="group_by_status" context="{'group_by': 'connection_status'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="action_limesurvey_server" model="ir.actions.act_window">
+        <field name="name">Serveurs LimeSurvey</field>
+        <field name="res_model">limesurvey.server.config</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_limesurvey_server_search"/>
+        <field name="context">{'search_default_not_archived': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Aucun serveur LimeSurvey configuré
+            </p>
+            <p>
+                Configurez votre premier serveur LimeSurvey pour commencer à synchroniser vos formulaires.
+            </p>
+        </field>
+    </record>
+</odoo> 

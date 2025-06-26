@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config>
+    <metadata>
+        <name>WebhookSubmit</name>
+        <type>plugin</type>
+        <creationDate>2024-03-21</creationDate>
+        <lastUpdate>2024-03-21</lastUpdate>
+        <author>caeruleaphile</author>
+        <authorUrl>https://github.com/caeruleaphile</authorUrl>
+        <version>1.0.0</version>
+        <license>GPL 3.0</license>
+        <description>A plugin to submit survey responses to Odoo via webhook</description>
+    </metadata>
+    <compatibility>
+        <version>6.13.0</version>
+        <version>6.13</version>
+        <version>6.0</version>
+        <version>6</version>
+    </compatibility>
+    <settings>
+        <setting>
+            <key>odoo_webhook_url</key>
+            <type>string</type>
+            <label>Odoo Webhook URL</label>
+            <default>http://localhost:8069/admission/webhook/submit</default>
+            <helpText>The complete URL of your Odoo webhook endpoint</helpText>
+        </setting>
+        <setting>
+            <key>webhook_token</key>
+            <type>string</type>
+            <label>Webhook Security Token</label>
+            <default></default>
+            <helpText>Security token for webhook authentication (must match Odoo configuration)</helpText>
+        </setting>
+        <setting>
+            <key>include_file_uploads</key>
+            <type>boolean</type>
+            <label>Include File Uploads</label>
+            <default>true</default>
+            <helpText>Enable sending file uploads as base64-encoded data</helpText>
+        </setting>
+        <setting>
+            <key>max_retries</key>
+            <type>integer</type>
+            <label>Maximum Retry Attempts</label>
+            <default>3</default>
+            <helpText>Number of times to retry failed webhook submissions</helpText>
+        </setting>
+        <setting>
+            <key>enable_logging</key>
+            <type>boolean</type>
+            <label>Enable Debug Logging</label>
+            <default>true</default>
+            <helpText>Log webhook submission details for debugging</helpText>
+        </setting>
+    </settings>
+</config> 

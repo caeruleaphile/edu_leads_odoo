@@ -1,0 +1,7 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_admission_candidate_admin,admission.candidate admin,model_admission_candidate,group_admission_admin,1,1,1,1
+access_admission_candidate_reviewer,admission.candidate reviewer,model_admission_candidate,group_admission_reviewer,1,1,1,1
+access_limesurvey_config_admin,limesurvey.server.config admin,model_limesurvey_server_config,group_admission_admin,1,1,1,1
+access_limesurvey_config_reviewer,limesurvey.server.config reviewer,model_limesurvey_server_config,group_admission_reviewer,1,1,1,1
+access_form_template_admin,admission.form.template admin,model_admission_form_template,group_admission_admin,1,1,1,1
+access_form_template_reviewer,admission.form.template reviewer,model_admission_form_template,group_admission_reviewer,1,1,1,1

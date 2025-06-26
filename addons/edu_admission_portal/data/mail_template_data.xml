@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- Template: Dossier Complet -->
+        <record id="email_template_admission_complete" model="mail.template">
+            <field name="name">Admission: Dossier Complet</field>
+            <field name="model_id" ref="model_admission_candidate"/>
+            <field name="subject">Confirmation de réception - Dossier complet</field>
+            <field name="email_from">{{ user.email_formatted }}</field>
+            <field name="email_to">{{ object.email }}</field>
+            <field name="body_html" type="html">
+                <div style="margin: 0px; padding: 0px;">
+                    <p>Bonjour {{ object.name }},</p>
+                    <p>Nous avons bien reçu votre dossier de candidature et nous vous confirmons qu'il est complet.</p>
+                    <p>Votre candidature va maintenant être examinée par notre équipe.</p>
+                    <p>Nous vous tiendrons informé(e) de la suite du processus.</p>
+                    <br/>
+                    <p>Cordialement,<br/>L'équipe des admissions</p>
+                </div>
+            </field>
+            <field name="lang">{{ object.lang }}</field>
+            <field name="auto_delete" eval="True"/>
+        </record>
+
+        <!-- Template: Présélection -->
+        <record id="email_template_admission_shortlisted" model="mail.template">
+            <field name="name">Admission: Présélection</field>
+            <field name="model_id" ref="model_admission_candidate"/>
+            <field name="subject">Candidature présélectionnée</field>
+            <field name="email_from">{{ user.email_formatted }}</field>
+            <field name="email_to">{{ object.email }}</field>
+            <field name="body_html" type="html">
+                <div style="margin: 0px; padding: 0px;">
+                    <p>Bonjour {{ object.name }},</p>
+                    <p>Nous avons le plaisir de vous informer que votre candidature a été présélectionnée.</p>
+                    <p>Vous recevrez prochainement une invitation pour un entretien.</p>
+                    <br/>
+                    <p>Cordialement,<br/>L'équipe des admissions</p>
+                </div>
+            </field>
+            <field name="lang">{{ object.lang }}</field>
+            <field name="auto_delete" eval="True"/>
+        </record>
+
+        <!-- Template: Invitation Entretien -->
+        <record id="email_template_admission_interview" model="mail.template">
+            <field name="name">Admission: Invitation Entretien</field>
+            <field name="model_id" ref="model_admission_candidate"/>
+            <field name="subject">Invitation à un entretien</field>
+            <field name="email_from">{{ user.email_formatted }}</field>
+            <field name="email_to">{{ object.email }}</field>
+            <field name="body_html" type="html">
+                <div style="margin: 0px; padding: 0px;">
+                    <p>Bonjour {{ object.name }},</p>
+                    <p>Suite à l'étude de votre dossier, nous avons le plaisir de vous inviter à un entretien.</p>
+                    <p>Merci de nous contacter pour convenir d'une date qui vous convient.</p>
+                    <br/>
+                    <p>Cordialement,<br/>L'équipe des admissions</p>
+                </div>
+            </field>
+            <field name="lang">{{ object.lang }}</field>
+            <field name="auto_delete" eval="True"/>
+        </record>
+
+        <!-- Template: Acceptation -->
+        <record id="email_template_admission_accepted" model="mail.template">
+            <field name="name">Admission: Acceptation</field>
+            <field name="model_id" ref="model_admission_candidate"/>
+            <field name="subject">Félicitations - Candidature acceptée</field>
+            <field name="email_from">{{ user.email_formatted }}</field>
+            <field name="email_to">{{ object.email }}</field>
+            <field name="body_html" type="html">
+                <div style="margin: 0px; padding: 0px;">
+                    <p>Bonjour {{ object.name }},</p>
+                    <p>Nous avons le plaisir de vous informer que votre candidature a été acceptée.</p>
+                    <p>Vous recevrez prochainement les informations concernant les prochaines étapes.</p>
+                    <br/>
+                    <p>Félicitations et bienvenue !</p>
+                    <br/>
+                    <p>Cordialement,<br/>L'équipe des admissions</p>
+                </div>
+            </field>
+            <field name="lang">{{ object.lang }}</field>
+            <field name="auto_delete" eval="True"/>
+        </record>
+
+        <!-- Template: Refus -->
+        <record id="email_template_admission_refused" model="mail.template">
+            <field name="name">Admission: Refus</field>
+            <field name="model_id" ref="model_admission_candidate"/>
+            <field name="subject">Réponse à votre candidature</field>
+            <field name="email_from">{{ user.email_formatted }}</field>
+            <field name="email_to">{{ object.email }}</field>
+            <field name="body_html" type="html">
+                <div style="margin: 0px; padding: 0px;">
+                    <p>Bonjour {{ object.name }},</p>
+                    <p>Nous avons étudié avec attention votre candidature.</p>
+                    <p>Malheureusement, nous ne pouvons pas y donner une suite favorable pour le moment.</p>
+                    <p>Nous vous souhaitons beaucoup de succès dans vos projets.</p>
+                    <br/>
+                    <p>Cordialement,<br/>L'équipe des admissions</p>
+                </div>
+            </field>
+            <field name="lang">{{ object.lang }}</field>
+            <field name="auto_delete" eval="True"/>
+        </record>
+    </data>
+</odoo> 
