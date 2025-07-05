@@ -1,0 +1,377 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Action pour les étapes -->
+    <record id="action_admission_candidate_stage" model="ir.actions.act_window">
+        <field name="name">Étapes du Pipeline</field>
+        <field name="res_model">admission.candidate.stage</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Créez votre première étape de pipeline !
+            </p>
+            <p>
+                Les étapes définissent le processus de traitement des candidatures,
+                de la réception jusqu'à la décision finale.
+            </p>
+        </field>
+    </record>
+
+    <!-- Action pour les candidats -->
+    <record id="action_admission_candidates" model="ir.actions.act_window">
+        <field name="name">Candidats</field>
+        <field name="res_model">admission.candidate</field>
+        <field name="view_mode">kanban,tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Créez votre premier candidat !
+            </p>
+            <p>
+                Gérez ici vos candidats et suivez leur progression dans le processus d'admission.
+            </p>
+        </field>
+    </record>
+
+    <!-- Vue Kanban pour les candidats -->
+    <record id="view_admission_candidate_kanban" model="ir.ui.view">
+        <field name="name">admission.candidate.kanban</field>
+        <field name="model">admission.candidate</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="stage_id" 
+                    class="o_kanban_small_column" 
+                    on_create="quick_create"
+                    quick_create_view="edu_admission_portal.quick_create_candidate_form"
+                    examples="admission_candidate">
+                <field name="stage_id"/>
+                <field name="name"/>
+                <field name="email"/>
+                <field name="form_id"/>
+                <field name="create_date"/>
+                <field name="evaluation_score"/>
+                <field name="color"/>
+                <field name="attachment_count"/>
+                <field name="activity_ids"/>
+                <field name="activity_state"/>
+                
+                <progressbar field="activity_state" 
+                            colors='{"planned": "success", "today": "warning", "overdue": "danger"}'/>
+                
+                <templates>
+                    <t t-name="kanban-box">
+                        <div t-attf-class="oe_kanban_global_click oe_kanban_card
+                                         #{record.color.raw_value ? 'oe_kanban_color_' + record.color.raw_value : ''}">
+                            <div class="o_kanban_record_top">
+                                <div class="o_kanban_record_headings">
+                                    <strong class="o_kanban_record_title">
+                                        <field name="name"/>
+                                    </strong>
+                                    <small class="text-muted">
+                                        <field name="form_id"/>
+                                    </small>
+                                </div>
+                            </div>
+                            <div class="o_kanban_record_body">
+                                <div class="row">
+                                    <div class="col-6">
+                                        <i class="fa fa-envelope-o" role="img" aria-label="Email"/><field name="email"/>
+                                    </div>
+                                    <div class="col-6 text-end">
+                                        <span t-if="record.evaluation_score.raw_value" class="badge rounded-pill text-bg-info">
+                                            <field name="evaluation_score"/> / 20
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="row mt-2">
+                                    <div class="col-6">
+                                        <i class="fa fa-calendar" role="img" aria-label="Date"/><field name="create_date"/>
+                                    </div>
+                                    <div class="col-6 text-end">
+                                        <span t-if="record.attachment_count.raw_value" class="badge rounded-pill text-bg-secondary">
+                                            <i class="fa fa-paperclip"/> <field name="attachment_count"/>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="o_kanban_record_bottom">
+                                <div class="oe_kanban_bottom_left">
+                                    <field name="activity_ids" widget="kanban_activity"/>
+                                </div>
+                                <div class="oe_kanban_bottom_right">
+                                    <field name="color" widget="color_picker"/>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- Vue de création rapide pour le kanban -->
+    <record id="quick_create_candidate_form" model="ir.ui.view">
+        <field name="name">admission.candidate.quick.form</field>
+        <field name="model">admission.candidate</field>
+        <field name="priority">1000</field>
+        <field name="arch" type="xml">
+            <form>
+                <group>
+                    <field name="form_id" required="1"/>
+                    <field name="first_name" required="1"/>
+                    <field name="last_name" required="1"/>
+                    <field name="email" required="1"/>
+                    <field name="stage_id" invisible="1"/>
+                </group>
+            </form>
+        </field>
+    </record>
+
+    <!-- Vue form pour les étapes -->
+    <record id="view_admission_candidate_stage_form" model="ir.ui.view">
+        <field name="name">admission.candidate.stage.form</field>
+        <field name="model">admission.candidate.stage</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name" class="oe_edit_only"/>
+                        <h1><field name="name"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="code"/>
+                            <field name="sequence"/>
+                            <field name="form_template_id"/>
+                        </group>
+                        <group>
+                            <field name="is_default"/>
+                            <field name="fold"/>
+                            <field name="active"/>
+                            <field name="color" widget="color_picker"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Description" name="description">
+                            <field name="description"/>
+                        </page>
+                        <page string="Prérequis" name="requirements">
+                            <field name="requirements"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Vue tree pour les étapes -->
+    <record id="view_admission_candidate_stage_tree" model="ir.ui.view">
+        <field name="name">admission.candidate.stage.tree</field>
+        <field name="model">admission.candidate.stage</field>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="form_template_id"/>
+                <field name="is_default"/>
+                <field name="candidate_count"/>
+                <field name="fold"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- Vue search pour les étapes -->
+    <record id="view_admission_candidate_stage_search" model="ir.ui.view">
+        <field name="name">admission.candidate.stage.search</field>
+        <field name="model">admission.candidate.stage</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="form_template_id"/>
+                <filter string="Étapes par Défaut" name="default" domain="[('is_default', '=', True)]"/>
+                <filter string="Étapes Pliées" name="folded" domain="[('fold', '=', True)]"/>
+                <filter string="Étapes Actives" name="active" domain="[('active', '=', True)]"/>
+                <group expand="0" string="Grouper Par">
+                    <filter string="Formulaire" name="group_by_form" context="{'group_by': 'form_template_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Vue form pour les candidats -->
+    <record id="view_admission_candidate_form" model="ir.ui.view">
+        <field name="name">admission.candidate.form</field>
+        <field name="model">admission.candidate</field>
+        <field name="arch" type="xml">
+            <form string="Candidat">
+                <header>
+                    <field name="status" widget="statusbar" statusbar_visible="new,complete,shortlisted,invited,accepted,refused"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_attachments" 
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-paperclip">
+                            <field name="attachment_count" string="Documents" widget="statinfo"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="form_id" 
+                                   options="{'no_create': True}"
+                                   help="Formulaire d'admission associé à cette candidature"/>
+                            <field name="stage_id" 
+                                   options="{'no_create': True}"
+                                   help="Étape actuelle dans le pipeline de candidature"
+                                   domain="[('form_template_id', '=', form_id)]"/>
+                        </group>
+                        <group>
+                            <field name="submission_date"/>
+                            <field name="last_update_date"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Informations Personnelles" name="personal_info">
+                            <group>
+                                <group string="Identité" name="identity">
+                                    <field name="civility"/>
+                                    <field name="first_name"/>
+                                    <field name="last_name"/>
+                                    <field name="birth_date"/>
+                                    <field name="cin_number"/>
+                                    <field name="massar_code"/>
+                                </group>
+                                <group string="Contact" name="contact">
+                                    <field name="email" widget="email"/>
+                                    <field name="phone" widget="phone"/>
+                                    <field name="address"/>
+                                    <field name="city"/>
+                                    <field name="postal_code"/>
+                                    <field name="residence_country"/>
+                                </group>
+                                <group string="Naissance" name="birth">
+                                    <field name="birth_city"/>
+                                    <field name="birth_country"/>
+                                    <field name="nationality"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Parcours Académique" name="academic"
+                              invisible="status == 'refused'">
+                            <group>
+                                <group string="Baccalauréat" name="bac_info">
+                                    <field name="bac_series"/>
+                                    <field name="bac_year"/>
+                                    <field name="bac_school"/>
+                                    <field name="bac_country"/>
+                                </group>
+                                <group string="Études Supérieures" name="higher_education">
+                                    <field name="university"/>
+                                    <field name="degree_field"/>
+                                    <field name="university_city"/>
+                                    <field name="degree_year"/>
+                                    <field name="academic_level"/>
+                                </group>
+                            </group>
+                            <group string="Moyennes" name="grades"
+                                  invisible="academic_level == 'bac'">
+                                <group string="Par Année">
+                                    <field name="avg_year1"/>
+                                    <field name="avg_year2"/>
+                                    <field name="avg_year3"/>
+                                </group>
+                                <group string="Par Semestre">
+                                    <field name="avg_sem1"/>
+                                    <field name="avg_sem2"/>
+                                    <field name="avg_sem3"/>
+                                    <field name="avg_sem4"/>
+                                    <field name="avg_sem5"/>
+                                    <field name="avg_sem6"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Pièces Jointes" name="attachments">
+                            <field name="attachment_ids" mode="kanban">
+                                <kanban>
+                                    <field name="name"/>
+                                    <field name="mimetype"/>
+                                    <templates>
+                                        <t t-name="kanban-box">
+                                            <div class="oe_kanban_global_click">
+                                                <div class="oe_kanban_details">
+                                                    <strong class="o_kanban_record_title">
+                                                        <field name="name"/>
+                                                    </strong>
+                                                </div>
+                                            </div>
+                                        </t>
+                                    </templates>
+                                </kanban>
+                            </field>
+                        </page>
+                        <page string="Évaluation" name="evaluation"
+                              groups="edu_admission_portal.group_admission_reviewer"
+                              invisible="status in ['new', 'refused']">
+                            <group>
+                                <group string="Notes" name="scores">
+                                    <field name="academic_score" 
+                                           widget="float_percentage"
+                                           help="Note sur 20 pour le dossier académique"/>
+                                    <field name="experience_score"
+                                           widget="float_percentage"
+                                           help="Note sur 20 pour l'expérience professionnelle"/>
+                                    <field name="motivation_score"
+                                           widget="float_percentage"
+                                           help="Note sur 20 pour la lettre de motivation"/>
+                                    <field name="evaluation_score"
+                                           widget="float_percentage"
+                                           help="Moyenne des notes d'évaluation"/>
+                                </group>
+                                <group string="Suivi" name="evaluation_tracking">
+                                    <field name="evaluation_status"/>
+                                    <field name="evaluation_date"/>
+                                    <field name="evaluator_id"/>
+                                </group>
+                            </group>
+                            <group string="Commentaires" name="evaluation_notes" colspan="4">
+                                <field name="evaluation_note" nolabel="1"/>
+                            </group>
+                        </page>
+                        <page string="Validation" name="validation"
+                              groups="edu_admission_portal.group_admission_reviewer">
+                            <group>
+                                <group string="Points de Contrôle" name="checkpoints">
+                                    <field name="payment_confirmed"
+                                           help="Cocher si le paiement des frais de candidature est confirmé"/>
+                                    <field name="documents_validated"
+                                           help="Cocher si tous les documents requis sont validés"/>
+                                    <field name="identity_verified"
+                                           help="Cocher si l'identité du candidat est vérifiée"/>
+                                    <field name="academic_validated"
+                                           help="Cocher si le niveau académique est validé"/>
+                                </group>
+                                <group string="Entretien" name="interview">
+                                    <field name="interview_scheduled"/>
+                                    <field name="interview_done"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Notes" name="notes">
+                            <field name="notes" nolabel="1"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+</odoo>

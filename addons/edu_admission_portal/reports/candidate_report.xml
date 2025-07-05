@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <!-- Template du rapport -->
+        <template id="report_admission_candidate">
+            <t t-call="web.html_container">
+                <t t-foreach="docs" t-as="doc">
+                    <t t-call="web.external_layout">
+                        <div class="page">
+                            <!-- En-tête -->
+                            <div class="row">
+                                <div class="col-12 text-center">
+                                    <h2>Dossier de Candidature</h2>
+                                    <p class="text-muted">Référence: <span t-field="doc.name"/></p>
+                                </div>
+                            </div>
+
+                            <!-- Informations personnelles -->
+                            <div class="row mt-4">
+                                <div class="col-12">
+                                    <h4>Informations Personnelles</h4>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <p><strong>Nom:</strong> <span t-field="doc.name"/></p>
+                                            <p><strong>Email:</strong> <span t-field="doc.email"/></p>
+                                            <p><strong>Téléphone:</strong> <span t-field="doc.phone"/></p>
+                                        </div>
+                                        <div class="col-6">
+                                            <p><strong>Date de naissance:</strong> <span t-field="doc.birth_date"/></p>
+                                            <p><strong>Nationalité:</strong> <span t-field="doc.nationality_id"/></p>
+                                            <p><strong>Adresse:</strong> <span t-field="doc.street"/> <span t-field="doc.city"/></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Formation -->
+                            <div class="row mt-4">
+                                <div class="col-12">
+                                    <h4>Formation</h4>
+                                    <table class="table table-sm">
+                                        <tr>
+                                            <th>Niveau académique</th>
+                                            <td><span t-field="doc.academic_level"/></td>
+                                        </tr>
+                                        <tr>
+                                            <th>Dernier diplôme</th>
+                                            <td><span t-field="doc.last_diploma"/></td>
+                                        </tr>
+                                        <tr>
+                                            <th>Établissement</th>
+                                            <td><span t-field="doc.school"/></td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Expérience -->
+                            <div class="row mt-4">
+                                <div class="col-12">
+                                    <h4>Expérience Professionnelle</h4>
+                                    <p><strong>Années d'expérience:</strong> <span t-field="doc.experience_years"/></p>
+                                    <p><strong>Dernier poste:</strong> <span t-field="doc.last_position"/></p>
+                                    <p><strong>Entreprise actuelle:</strong> <span t-field="doc.current_company"/></p>
+                                </div>
+                            </div>
+
+                            <!-- Évaluation -->
+                            <div class="row mt-4">
+                                <div class="col-12">
+                                    <h4>Évaluation</h4>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <table class="table table-sm">
+                                                <tr>
+                                                    <th>Score académique</th>
+                                                    <td><span t-field="doc.academic_score"/>/40</td>
+                                                </tr>
+                                                <tr>
+                                                    <th>Score d'expérience</th>
+                                                    <td><span t-field="doc.experience_score"/>/30</td>
+                                                </tr>
+                                                <tr>
+                                                    <th>Score de motivation</th>
+                                                    <td><span t-field="doc.motivation_score"/>/30</td>
+                                                </tr>
+                                                <tr class="table-info">
+                                                    <th>Score total</th>
+                                                    <td><strong><span t-field="doc.total_score"/>/100</strong></td>
+                                                </tr>
+                                            </table>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="alert alert-info">
+                                                <strong>Recommandation:</strong>
+                                                <span t-field="doc.recommendation"/>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Entretien -->
+                            <div class="row mt-4" t-if="doc.interview_date">
+                                <div class="col-12">
+                                    <h4>Entretien</h4>
+                                    <p><strong>Date:</strong> <span t-field="doc.interview_date"/></p>
+                                    <p><strong>Évaluateur:</strong> <span t-field="doc.interviewer_id"/></p>
+                                    <p><strong>Notes:</strong> <span t-field="doc.interview_notes"/></p>
+                                </div>
+                            </div>
+
+                            <!-- Documents -->
+                            <div class="row mt-4">
+                                <div class="col-12">
+                                    <h4>Documents Fournis</h4>
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>Document</th>
+                                                <th>Type</th>
+                                                <th>État</th>
+                                                <th>Date</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <t t-foreach="doc.attachment_ids" t-as="attachment">
+                                                <tr>
+                                                    <td><span t-field="attachment.name"/></td>
+                                                    <td><span t-field="attachment.document_type"/></td>
+                                                    <td>
+                                                        <span t-if="attachment.validation_state == 'valid'"
+                                                              class="badge badge-success">Valide</span>
+                                                        <span t-elif="attachment.validation_state == 'invalid'"
+                                                              class="badge badge-danger">Non valide</span>
+                                                        <span t-else=""
+                                                              class="badge badge-warning">En attente</span>
+                                                    </td>
+                                                    <td><span t-field="attachment.create_date"/></td>
+                                                </tr>
+                                            </t>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Pied de page avec signature -->
+                            <div class="row mt-5">
+                                <div class="col-6">
+                                    <p>Date d'impression: <span t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y')"/></p>
+                                </div>
+                                <div class="col-6 text-right">
+                                    <p>Signature:</p>
+                                    <br/>
+                                    <br/>
+                                    <p>_______________________</p>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </t>
+            </t>
+        </template>
+
+        <!-- Action de rapport -->
+        <record id="action_report_admission_candidate" model="ir.actions.report">
+            <field name="name">Dossier de Candidature</field>
+            <field name="model">admission.candidate</field>
+            <field name="report_type">qweb-pdf</field>
+            <field name="report_name">edu_admission_portal.report_admission_candidate</field>
+            <field name="report_file">edu_admission_portal.report_admission_candidate</field>
+            <field name="print_report_name">'Dossier - %s' % object.name</field>
+            <field name="binding_model_id" ref="model_admission_candidate"/>
+            <field name="binding_type">report</field>
+        </record>
+    </data>
+</odoo> 

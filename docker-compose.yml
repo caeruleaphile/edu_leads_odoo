@@ -7,6 +7,7 @@ services:
       - POSTGRES_DB=postgres
       - POSTGRES_USER=odoo
       - POSTGRES_PASSWORD=odoo
+      - POSTGRES_HOST_AUTH_METHOD=trust
     volumes:
       - odoo-db-data:/var/lib/postgresql/data
 
@@ -20,6 +21,7 @@ services:
       - HOST=db
       - USER=odoo
       - PASSWORD=odoo
+      - MASTER_PASSWORD=admin123
     volumes:
       - ./addons:/mnt/extra-addons
       - ./odoo.conf:/etc/odoo/odoo.conf

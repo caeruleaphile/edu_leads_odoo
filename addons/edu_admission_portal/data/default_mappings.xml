@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- Default LimeSurvey Server Configuration -->
+        <record id="default_limesurvey_server" model="limesurvey.server.config">
+            <field name="name">Serveur LimeSurvey</field>
+            <field name="base_url"></field>
+            <field name="api_username"></field>
+            <field name="api_password"></field>
+            <field name="active">True</field>
+        </record>
+    </data>
+</odoo> 

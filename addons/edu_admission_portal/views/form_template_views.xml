@@ -1,176 +1,344 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Form View -->
-    <record id="view_admission_form_template_form" model="ir.ui.view">
-        <field name="name">admission.form.template.form</field>
-        <field name="model">admission.form.template</field>
-        <field name="arch" type="xml">
-            <form string="Formulaire d'Admission">
-                <header>
-                    <button name="action_sync_form" 
-                            string="Synchroniser" 
-                            type="object" 
-                            class="btn-primary"/>
-                    <button name="action_set_public" type="object"
-                            string="Rendre Public" class="oe_highlight"
-                            confirm="Êtes-vous sûr de vouloir rendre ce formulaire public ? Cela permettra à n'importe qui d'y répondre sans code d'accès."/>
-                    <button name="action_disable_tokens" type="object"
-                            string="Désactiver les Codes d'Accès" class="oe_highlight"
-                            confirm="Êtes-vous sûr de vouloir désactiver les codes d'accès ? Cela permettra à n'importe qui de répondre au formulaire."/>
-                    <field name="sync_status" widget="statusbar"/>
-                </header>
-                <sheet>
-                    <div class="oe_button_box" name="button_box">
-                        <button name="action_view_candidates" 
-                                type="object" 
-                                class="oe_stat_button" 
+    <data>
+        <!-- Form View -->
+        <record id="view_admission_form_template_form" model="ir.ui.view">
+            <field name="name">admission.form.template.form</field>
+            <field name="model">admission.form.template</field>
+            <field name="arch" type="xml">
+                <form string="Template de Formulaire">
+                    <header>
+                        <button name="action_sync_form"
+                            type="object"
+                            string="Synchroniser"
+                            class="oe_highlight"
+                            invisible="sync_status == 'synced'"/>
+                        <button name="action_sync_form"
+                            type="object"
+                            string="Resynchroniser"
+                            invisible="sync_status != 'synced'"/>
+                        <button name="action_generate_mappings"
+                            type="object"
+                            string="Générer Mappings"
+                            invisible="sync_status != 'synced'"/>
+                        <button name="action_enable_auto_creation"
+                            type="object"
+                            string="✨ Activer Création Auto"
+                            class="btn-success"
+                            invisible="auto_create_status == 'enabled' or not mapping_validated"/>
+                        <button name="action_pause_auto_creation"
+                            type="object"
+                            string="⏸️ Mettre en Pause"
+                            class="btn-warning"
+                            invisible="auto_create_status != 'enabled'"/>
+                        <button name="action_resume_auto_creation"
+                            type="object"
+                            string="▶️ Reprendre"
+                            class="btn-success"
+                            invisible="auto_create_status != 'paused'"/>
+                        <button name="action_disable_auto_creation"
+                            type="object"
+                            string="❌ Désactiver"
+                            class="btn-danger"
+                            invisible="auto_create_status == 'disabled'"/>
+                        <button name="action_diagnose_auto_creation"
+                            type="object"
+                            string="🔍 Diagnostiquer"
+                            class="btn-info"
+                            help="Diagnostiquer pourquoi la création automatique ne fonctionne pas"/>
+                        <button name="action_import_responses"
+                            type="object"
+                            string="Importer Réponses"
+                            class="btn-primary"
+                            invisible="sync_status != 'synced'"/>
+                        <button name="action_open_form_url"
+                            type="object"
+                            string="Ouvrir Formulaire"
+                            class="btn-secondary"
+                            icon="fa-external-link"
+                            invisible="not survey_url"/>
+                        <field name="sync_status" widget="statusbar"/>
+                    </header>
+                    <sheet>
+                        <div class="oe_button_box" name="button_box">
+                            <button name="action_view_candidates"
+                                type="object"
+                                class="oe_stat_button"
                                 icon="fa-users">
-                            <field name="candidate_count" widget="statinfo" string="Candidats"/>
-                        </button>
-                        <button name="action_open_form_url" 
-                                type="object" 
-                                class="oe_stat_button" 
-                                icon="fa-external-link">
-                            <span>Voir le Formulaire</span>
-                        </button>
-                    </div>
-                    <div class="oe_title">
-                        <label for="title" class="oe_edit_only"/>
-                        <h1><field name="title" placeholder="Titre du Formulaire"/></h1>
-                    </div>
-                    <group>
-                        <group string="Informations LimeSurvey">
-                            <field name="sid"/>
-                            <field name="server_config_id"/>
-                            <field name="owner"/>
-                            <field name="is_active" widget="boolean_toggle"/>
+                                <field name="candidate_count" widget="statinfo" string="Candidats"/>
+                            </button>
+                        </div>
+                        <div class="oe_title">
+                            <h1>
+                                <field name="name" readonly="1"/>
+                            </h1>
+                        </div>
+                        <group>
+                            <group>
+                                <field name="sid"/>
+                                <field name="title" readonly="1" force_save="1"/>
+                                <field name="description"/>
+                                <field name="server_config_id" 
+                                       options="{'no_create': True, 'no_open': True}"/>
+                                <field name="survey_url" widget="url"/>
+                                <field name="is_active"/>
+                            </group>
+                            <group>
+                                <field name="owner"/>
+                                <field name="last_sync_date"/>
+                                <field name="auto_create_status" widget="badge"/>
+                                <field name="mapping_validated" invisible="1"/>
+                                <field name="auto_create_candidates" invisible="1"/>
+                                <field name="last_candidate_creation"/>
+                                <field name="total_auto_created"/>
+                                <field name="active" invisible="1"/>
+                            </group>
                         </group>
-                        <group string="Synchronisation">
-                            <field name="last_sync_date" readonly="1"/>
-                            <field name="form_url" widget="url" readonly="1"/>
-                            <field name="active" widget="boolean_toggle"/>
-                        </group>
-                    </group>
-                    <notebook>
-                        <page string="Description" name="description">
-                            <field name="description" widget="html"/>
-                        </page>
-                        <page string="Métadonnées" name="metadata">
-                            <field name="metadata" widget="json_viewer"/>
-                        </page>
-                    </notebook>
-                </sheet>
-                <div class="oe_chatter">
-                    <field name="message_follower_ids"/>
-                    <field name="activity_ids"/>
-                    <field name="message_ids"/>
-                </div>
-            </form>
-        </field>
-    </record>
-
-    <!-- Kanban View -->
-    <record id="view_admission_form_template_kanban" model="ir.ui.view">
-        <field name="name">admission.form.template.kanban</field>
-        <field name="model">admission.form.template</field>
-        <field name="arch" type="xml">
-            <kanban>
-                <field name="name"/>
-                <field name="active"/>
-                <field name="sync_status"/>
-                <field name="candidate_count"/>
-                <templates>
-                    <t t-name="kanban-box">
-                        <div class="oe_kanban_global_click">
-                            <div class="oe_kanban_details">
-                                <strong class="o_kanban_record_title">
-                                    <field name="name"/>
-                                </strong>
-                                <div class="o_kanban_tags_section">
-                                    <span class="badge badge-success" t-if="record.active.raw_value">Actif</span>
-                                    <span class="badge badge-warning" t-if="!record.active.raw_value">Inactif</span>
-                                    <span class="badge badge-info" t-if="record.sync_status.raw_value == 'synced'">Synchronisé</span>
-                                    <span class="badge badge-danger" t-if="record.sync_status.raw_value != 'synced'">Non Synchronisé</span>
+                        <notebook>
+                            <page string="Description" name="description">
+                                <field name="description" widget="html"/>
+                            </page>
+                            <page string="Création Automatique" name="auto_creation" 
+                                  invisible="not auto_create_candidates">
+                                <div class="alert alert-success" role="alert">
+                                    <h4>✅ Création Automatique Activée</h4>
+                                    <p>Les candidats sont créés automatiquement lors de la soumission du formulaire.</p>
+                                    <ul>
+                                        <li><strong>Statut :</strong> <field name="auto_create_status" readonly="1"/></li>
+                                        <li><strong>Total créés :</strong> <field name="total_auto_created" readonly="1"/></li>
+                                        <li><strong>Dernière création :</strong> <field name="last_candidate_creation" readonly="1"/></li>
+                                    </ul>
                                 </div>
-                                <div class="o_kanban_record_bottom">
-                                    <div class="oe_kanban_bottom_left">
-                                        <field name="candidate_count" widget="statinfo" icon="fa-user"/>
+                            </page>
+                            <page string="Structure" name="structure" invisible="not field_mapping">
+                                <field name="field_mapping" widget="ace" options="{'mode': 'json'}"/>
+                            </page>
+                            <page string="Métadonnées" name="metadata" invisible="not metadata">
+                                <field name="metadata" widget="ace" options="{'mode': 'json'}"/>
+                            </page>
+                        </notebook>
+                    </sheet>
+                    <div class="oe_chatter">
+                        <field name="message_follower_ids"/>
+                        <field name="activity_ids"/>
+                        <field name="message_ids"/>
+                    </div>
+                </form>
+            </field>
+        </record>
+
+        <!-- Kanban View -->
+        <record id="view_admission_form_template_kanban" model="ir.ui.view">
+            <field name="name">admission.form.template.kanban</field>
+            <field name="model">admission.form.template</field>
+            <field name="arch" type="xml">
+                <kanban>
+                    <field name="name"/>
+                    <field name="active"/>
+                    <field name="sync_status"/>
+                    <field name="candidate_count"/>
+                    <templates>
+                        <t t-name="kanban-box">
+                            <div class="oe_kanban_global_click">
+                                <div class="oe_kanban_details">
+                                    <strong class="o_kanban_record_title">
+                                        <field name="name"/>
+                                    </strong>
+                                    <div class="o_kanban_tags_section">
+                                        <span class="badge badge-success" t-if="record.active.raw_value">Actif</span>
+                                        <span class="badge badge-warning" t-if="!record.active.raw_value">Inactif</span>
+                                        <span class="badge badge-info" t-if="record.sync_status.raw_value == 'synced'">Synchronisé</span>
+                                        <span class="badge badge-danger" t-if="record.sync_status.raw_value != 'synced'">Non Synchronisé</span>
                                     </div>
-                                    <div class="oe_kanban_bottom_right">
-                                        <button name="action_import_responses" type="object" 
-                                                class="btn btn-secondary btn-sm"
-                                                title="Synchroniser les réponses">
-                                            <i class="fa fa-refresh"/> Sync
-                                        </button>
+                                    <div class="o_kanban_record_bottom">
+                                        <div class="oe_kanban_bottom_left">
+                                            <field name="candidate_count" widget="statinfo" icon="fa-user"/>
+                                        </div>
+                                        <div class="oe_kanban_bottom_right">
+                                            <button name="action_import_responses" type="object" 
+                                                    class="btn btn-secondary btn-sm"
+                                                    title="Synchroniser les réponses">
+                                                <i class="fa fa-refresh"/> Sync
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
+                        </t>
+                    </templates>
+                </kanban>
+            </field>
+        </record>
+
+        <!-- Tree View -->
+        <record id="view_admission_form_template_tree" model="ir.ui.view">
+            <field name="name">admission.form.template.tree</field>
+            <field name="model">admission.form.template</field>
+            <field name="arch" type="xml">
+                <tree string="Templates de Formulaire">
+                    <field name="name"/>
+                    <field name="sid"/>
+                    <field name="server_config_id"/>
+                    <field name="is_active"/>
+                    <field name="sync_status"/>
+                    <field name="last_sync_date"/>
+                    <field name="candidate_count"/>
+                </tree>
+            </field>
+        </record>
+
+        <!-- Search View -->
+        <record id="view_admission_form_template_search" model="ir.ui.view">
+            <field name="name">admission.form.template.search</field>
+            <field name="model">admission.form.template</field>
+            <field name="arch" type="xml">
+                <search string="Rechercher un template">
+                    <field name="name"/>
+                    <field name="sid"/>
+                    <field name="server_config_id"/>
+                    <separator/>
+                    <filter string="Actifs" name="active" domain="[('is_active', '=', True)]"/>
+                    <filter string="Synchronisés" name="synced" domain="[('sync_status', '=', 'synced')]"/>
+                    <filter string="En Erreur" name="error" domain="[('sync_status', '=', 'error')]"/>
+                    <group expand="0" string="Group By">
+                        <filter string="Serveur" name="group_by_server" context="{'group_by': 'server_config_id'}"/>
+                        <filter string="Statut" name="group_by_status" context="{'group_by': 'sync_status'}"/>
+                    </group>
+                </search>
+            </field>
+        </record>
+
+        <!-- Action pour les modèles de formulaire -->
+        <record id="action_admission_form_template" model="ir.actions.act_window">
+            <field name="name">Templates de Formulaire</field>
+            <field name="res_model">admission.form.template</field>
+            <field name="view_mode">tree,form</field>
+            <field name="context">{'search_default_active': 1}</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    Aucun template de formulaire trouvé
+                </p>
+                <p>
+                    Les templates de formulaire sont synchronisés depuis LimeSurvey.
+                    Configurez d'abord un serveur LimeSurvey dans la configuration.
+                </p>
+            </field>
+        </record>
+
+        <!-- Vue form pour admission.form.mapping -->
+        <record id="view_admission_form_mapping_form" model="ir.ui.view">
+            <field name="name">admission.form.mapping.form</field>
+            <field name="model">admission.form.mapping</field>
+            <field name="arch" type="xml">
+                <form>
+                    <header>
+                        <button name="action_validate"
+                                string="Valider"
+                                type="object"
+                                class="oe_highlight"
+                                invisible="state == 'validated' or not mapping_line_ids"
+                        />
+                        <button name="action_validate_all_mapped_lines"
+                                string="Valider tous les mappés"
+                                type="object"
+                                class="btn-success"
+                                invisible="state == 'validated'"
+                                help="Valide toutes les lignes de mapping qui ont un champ Odoo renseigné"/>
+                        <button name="action_reset_to_draft"
+                                string="Repasser en brouillon"
+                                type="object"
+                                invisible="state != 'validated'"
+                        />
+                        <button name="action_regenerate_mapping"
+                                string="Regénérer"
+                                type="object"
+                                invisible="state == 'validated'"
+                        />
+                        <field name="state" widget="statusbar"
+                               statusbar_visible="draft,validated"
+                        />
+                    </header>
+                    <sheet>
+                        <div class="oe_title">
+                            <h1>
+                                <field name="name" readonly="1"/>
+                            </h1>
                         </div>
-                    </t>
-                </templates>
-            </kanban>
-        </field>
-    </record>
+                        <group>
+                            <group>
+                                <field name="form_template_id" readonly="1"/>
+                                <field name="sequence"/>
+                                <field name="generated_at" readonly="1"/>
+                                <field name="active" invisible="1"/>
+                            </group>
+                            <group>
+                                <field name="mapping_line_ids" invisible="1"/>
+                            </group>
+                        </group>
+                        <notebook>
+                            <page string="Lignes de Mapping" name="mapping_lines">
+                                <field name="mapping_line_ids" mode="tree">
+                                    <tree editable="bottom">
+                                        <field name="sequence" widget="handle"/>
+                                        <field name="question_code"/>
+                                        <field name="question_text"/>
+                                        <field name="question_type"/>
+                                        <field name="odoo_field"/>
+                                        <field name="is_required"/>
+                                        <field name="is_attachment"/>
+                                        <field name="confidence_score" widget="percentage"/>
+                                        <field name="status"/>
+                                    </tree>
+                                </field>
+                            </page>
+                            <page string="Notes" name="notes">
+                                <field name="notes"/>
+                            </page>
+                            <page string="Configuration JSON" name="json_config">
+                                <field name="mapping_json"/>
+                            </page>
+                        </notebook>
+                    </sheet>
+                    <div class="oe_chatter">
+                        <field name="message_follower_ids"/>
+                        <field name="message_ids"/>
+                    </div>
+                </form>
+            </field>
+        </record>
 
-    <!-- Tree View -->
-    <record id="view_admission_form_template_tree" model="ir.ui.view">
-        <field name="name">admission.form.template.tree</field>
-        <field name="model">admission.form.template</field>
-        <field name="arch" type="xml">
-            <tree string="Formulaires d'Admission">
-                <field name="title"/>
-                <field name="sid"/>
-                <field name="server_config_id"/>
-                <field name="is_active"/>
-                <field name="sync_status"/>
-                <field name="candidate_count"/>
-                <field name="last_sync_date"/>
-                <button name="action_sync_form" 
-                        type="object" 
-                        icon="fa-refresh" 
-                        string="Synchroniser"/>
-            </tree>
-        </field>
-    </record>
+        <!-- Tree View pour admission.form.mapping -->
+        <record id="view_admission_form_mapping_tree" model="ir.ui.view">
+            <field name="name">admission.form.mapping.tree</field>
+            <field name="model">admission.form.mapping</field>
+            <field name="arch" type="xml">
+                <tree>
+                    <field name="sequence" widget="handle"/>
+                    <field name="name"/>
+                    <field name="form_template_id"/>
+                    <field name="generated_at"/>
+                    <field name="state"/>
+                </tree>
+            </field>
+        </record>
 
-    <!-- Search View -->
-    <record id="view_admission_form_template_search" model="ir.ui.view">
-        <field name="name">admission.form.template.search</field>
-        <field name="model">admission.form.template</field>
-        <field name="arch" type="xml">
-            <search string="Rechercher un Formulaire">
-                <field name="title"/>
-                <field name="sid"/>
-                <field name="server_config_id"/>
-                <separator/>
-                <filter string="Actifs" name="active" domain="[('is_active', '=', True)]"/>
-                <filter string="Synchronisés" name="synced" domain="[('sync_status', '=', 'synced')]"/>
-                <filter string="En Attente" name="pending" domain="[('sync_status', '=', 'pending')]"/>
-                <filter string="En Erreur" name="error" domain="[('sync_status', '=', 'error')]"/>
-                <separator/>
-                <filter string="Archivé" name="inactive" domain="[('active', '=', False)]"/>
-                <group expand="0" string="Regrouper Par">
-                    <filter string="Serveur" name="group_by_server" context="{'group_by': 'server_config_id'}"/>
-                    <filter string="Statut" name="group_by_status" context="{'group_by': 'sync_status'}"/>
-                </group>
-            </search>
-        </field>
-    </record>
+        <!-- Vue search pour admission.form.mapping -->
+        <record id="view_admission_form_mapping_search" model="ir.ui.view">
+            <field name="name">admission.form.mapping.search</field>
+            <field name="model">admission.form.mapping</field>
+            <field name="arch" type="xml">
+                <search>
+                    <field name="name"/>
+                    <field name="form_template_id"/>
+                    <filter string="Brouillon" name="draft" domain="[('state', '=', 'draft')]"/>
+                    <filter string="Validé" name="validated" domain="[('state', '=', 'validated')]"/>
+                    <group expand="0" string="Regrouper par">
+                        <filter string="Template" name="group_by_template" context="{'group_by': 'form_template_id'}"/>
+                        <filter string="État" name="group_by_state" context="{'group_by': 'state'}"/>
+                    </group>
+                </search>
+            </field>
+        </record>
 
-    <!-- Action -->
-    <record id="action_admission_form_template" model="ir.actions.act_window">
-        <field name="name">Formulaires d'Admission</field>
-        <field name="res_model">admission.form.template</field>
-        <field name="view_mode">kanban,tree,form</field>
-        <field name="search_view_id" ref="view_admission_form_template_search"/>
-        <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">
-                Aucun formulaire d'admission trouvé
-            </p>
-            <p>
-                Les formulaires seront automatiquement synchronisés depuis LimeSurvey
-                lors du test de connexion au serveur.
-            </p>
-        </field>
-    </record>
+    </data>
 </odoo> 

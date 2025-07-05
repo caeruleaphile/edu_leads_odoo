@@ -147,11 +147,237 @@ class WebhookSubmit extends PluginBase
                     'sid = :sid',
                     [':sid' => $surveyId]
                 );
+
+                // Désactiver complètement les tokens dans la base de données
+                $this->disableTokensInDatabase($surveyId);
                 
                 $this->log("Paramètres appliqués au sondage $surveyId");
             }
         } catch (Exception $e) {
             $this->log("Erreur lors de l'application des paramètres: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Désactive complètement les tokens dans la base de données
+     */
+    protected function disableTokensInDatabase($surveyId)
+    {
+        try {
+            $db = \Yii::app()->db;
+            $transaction = $db->beginTransaction();
+
+            try {
+                // 1. Vérifier si la table des tokens existe
+                $tokenTableName = "{{tokens_$surveyId}}";
+                $tableExists = $db->createCommand("
+                    SELECT COUNT(*) 
+                    FROM information_schema.tables 
+                    WHERE table_name = " . $db->quoteValue("lime_tokens_$surveyId")
+                )->queryScalar();
+
+                if ($tableExists) {
+                    // Supprimer la table des tokens si elle existe
+                    $db->createCommand()->dropTable($tokenTableName);
+                    $this->log("Table des tokens supprimée pour le sondage $surveyId");
+                }
+
+                // 2. Mise à jour de la table surveys avec tous les paramètres nécessaires
+                $command = $db->createCommand();
+                $command->update('{{surveys}}', 
+                    [
+                        'usetokens' => 'N',
+                        'tokenanswerspersistence' => 'N',
+                        'allowregister' => 'N',
+                        'listpublic' => 'Y',
+                        'publicsurvey' => 'Y',
+                        'usecookie' => 'N',
+                        'alloweditaftercompletion' => 'N',
+                        'anonymized' => 'N',
+                        'surveymode' => 'open',
+                        'template' => 'fruity',
+                        'format' => 'G',
+                        'showwelcome' => 'N',
+                        'showprogress' => 'Y',
+                        'questionindex' => 0,
+                        'navigationdelay' => 0,
+                        'nokeyboard' => 'N',
+                        'allowprev' => 'Y',
+                        'printanswers' => 'N',
+                        'publicstatistics' => 'N',
+                        'publicgraphs' => 'N',
+                        'assessments' => 'N',
+                        'usecaptcha' => 'N',
+                        'allowsave' => 'N',
+                        'showgroupinfo' => 'N',
+                        'showqnumcode' => 'N'
+                    ],
+                    'sid = :sid',
+                    [':sid' => $surveyId]
+                );
+
+                // 3. Mise à jour des paramètres de langue pour supprimer tous les messages liés aux tokens et à l'inscription
+                $command->update('{{surveys_languagesettings}}',
+                    [
+                        'surveyls_message_accesscode' => '',
+                        'surveyls_message_notoken' => '',
+                        'surveyls_message_registererror' => '',
+                        'surveyls_message_register' => '',
+                        'surveyls_message_registermsg' => '',
+                        'surveyls_message_registersuccessmsg' => '',
+                        'surveyls_message_registersuccessmsg2' => '',
+                        'surveyls_email_register_subj' => '',
+                        'surveyls_email_register' => '',
+                        'surveyls_email_confirm_subj' => '',
+                        'surveyls_email_confirm' => '',
+                        'surveyls_email_invite_subj' => '',
+                        'surveyls_email_invite' => '',
+                        'surveyls_email_remind_subj' => '',
+                        'surveyls_email_remind' => '',
+                        'surveyls_welcometext' => '',
+                        'surveyls_endtext' => ''
+                    ],
+                    'surveyls_survey_id = :sid',
+                    [':sid' => $surveyId]
+                );
+
+                // 4. Suppression des entrées dans survey_url_parameters
+                $command->delete('{{survey_url_parameters}}',
+                    'sid = :sid AND (parameter LIKE :pattern1 OR parameter LIKE :pattern2)',
+                    [
+                        ':sid' => $surveyId,
+                        ':pattern1' => '%token%',
+                        ':pattern2' => '%register%'
+                    ]
+                );
+
+                // 5. Mise à jour des permissions
+                $command->update('{{surveys_rights}}',
+                    [
+                        'use_tokens' => 0,
+                        'create_token' => 0,
+                        'delete_token' => 0,
+                        'export' => 0,
+                        'import' => 0
+                    ],
+                    'sid = :sid',
+                    [':sid' => $surveyId]
+                );
+
+                // 6. Suppression des conditions basées sur les tokens
+                $command->delete('{{conditions}}',
+                    'cfield LIKE :pattern AND qid IN (SELECT qid FROM {{questions}} WHERE sid = :sid)',
+                    [
+                        ':pattern' => '%TOKEN:%',
+                        ':sid' => $surveyId
+                    ]
+                );
+
+                // 7. Mise à jour des paramètres de template
+                $command->update('{{template_configuration}}',
+                    [
+                        'options' => json_encode([
+                            'ajaxmode' => 'off',
+                            'brandlogo' => 'off',
+                            'container' => 'on',
+                            'hideprivacyinfo' => 'on',
+                            'showpopups' => 'off',
+                            'showclearall' => 'off',
+                            'questionhelptextposition' => 'none'
+                        ])
+                    ],
+                    'template_name = :template AND sid = :sid',
+                    [
+                        ':template' => 'fruity',
+                        ':sid' => $surveyId
+                    ]
+                );
+
+                $transaction->commit();
+                $this->log("Configuration complètement mise à jour pour le sondage $surveyId");
+            } catch (Exception $e) {
+                $transaction->rollback();
+                $this->log("Erreur lors de la mise à jour de la configuration: " . $e->getMessage());
+                throw $e;
+            }
+        } catch (Exception $e) {
+            $this->log("Erreur critique lors de la mise à jour de la configuration: " . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Supprime les messages liés aux tokens dans les templates
+     */
+    protected function removeTokenMessages($surveyId)
+    {
+        try {
+            $db = \Yii::app()->db;
+            
+            // 1. Mise à jour des messages dans les traductions de sondage
+            $command = $db->createCommand();
+            
+            // Liste des messages à supprimer ou remplacer
+            $messagesToRemove = [
+                'tokenentry' => '',  // Page de saisie du token
+                'tokenemailnotifications' => '',  // Notifications par email des tokens
+                'tokenemailregisterconfirm' => '',  // Confirmation d'inscription
+                'tokenemailregister' => '',  // Email d'inscription
+                'token' => '',  // Champ token
+                'captcharegexp' => ''  // Expression régulière du captcha
+            ];
+            
+            // Mise à jour pour chaque langue du sondage
+            $languages = \Survey::model()->findByPk($surveyId)->additionalLanguages;
+            $languages[] = \Survey::model()->findByPk($surveyId)->language;
+            
+            foreach ($languages as $language) {
+                foreach ($messagesToRemove as $messageKey => $newValue) {
+                    $command->update('{{surveys_languagesettings}}',
+                        [$messageKey => $newValue],
+                        'surveyls_survey_id = :sid AND surveyls_language = :language',
+                        [
+                            ':sid' => $surveyId,
+                            ':language' => $language
+                        ]
+                    );
+                }
+            }
+
+            // 2. Suppression des messages d'erreur liés aux tokens
+            $command->update('{{surveys_languagesettings}}',
+                [
+                    'surveyls_email_register_subj' => '',
+                    'surveyls_email_register' => '',
+                    'surveyls_email_confirm_subj' => '',
+                    'surveyls_email_confirm' => '',
+                    'email_register_subj' => '',
+                    'email_register' => '',
+                    'email_confirm_subj' => '',
+                    'email_confirm' => ''
+                ],
+                'surveyls_survey_id = :sid',
+                [':sid' => $surveyId]
+            );
+
+            // 3. Mise à jour des paramètres globaux du sondage
+            $command->update('{{surveys}}',
+                [
+                    'tokenencryptionoptions' => '{"enabled":"N"}',  // Désactive le cryptage des tokens
+                    'showwelcome' => 'N',  // Désactive la page de bienvenue qui peut contenir des messages de token
+                    'showsurveypolicynotice' => '0',  // Désactive la notice de politique qui peut mentionner les tokens
+                    'showdatapolicybutton' => '0',  // Désactive le bouton de politique de données
+                    'showprivacyinfo' => '0'  // Désactive les infos de confidentialité
+                ],
+                'sid = :sid',
+                [':sid' => $surveyId]
+            );
+
+            $this->log("Messages liés aux tokens supprimés pour le sondage $surveyId");
+            return true;
+        } catch (Exception $e) {
+            $this->log("Erreur lors de la suppression des messages liés aux tokens: " . $e->getMessage());
+            return false;
         }
     }
 
@@ -225,26 +451,23 @@ class WebhookSubmit extends PluginBase
      */
     public function afterSurveyComplete()
     {
+        $event = $this->getEvent();
+        $surveyId = $event->get('surveyId');
+        $responseId = $event->get('responseId');
+        
         try {
-            // Log de démarrage
-            file_put_contents('/tmp/webhook_debug.log', "=== DÉBUT TRAITEMENT WEBHOOK ===\n", FILE_APPEND);
-            file_put_contents('/tmp/webhook_debug.log', date('Y-m-d H:i:s') . "\n", FILE_APPEND);
+            // Vérification de la configuration
+            $webhookUrl = $this->get('webhook_url', 'Survey', $surveyId, $this->settings['webhook_url']['default']);
+            $webhookToken = $this->get('webhook_token', 'Survey', $surveyId, '');
             
-            $event = $this->getEvent();
-            $surveyId = $event->get('surveyId');
-            $responseId = $event->get('responseId');
+            if (empty($webhookUrl) || empty($webhookToken)) {
+                throw new Exception('Configuration du webhook incomplète. URL et token requis.');
+            }
 
-            file_put_contents('/tmp/webhook_debug.log', "Survey ID: $surveyId\nResponse ID: $responseId\n", FILE_APPEND);
-
-            // Récupération des données de la réponse
+            // Préparation des données
             $responseData = $this->getResponseData($surveyId, $responseId);
-            file_put_contents('/tmp/webhook_debug.log', "Données de réponse récupérées\n", FILE_APPEND);
-            
-            // Récupération des fichiers si activé
-            $files = [];
-            if ($this->get('include_files', null, null, true)) {
-                $files = $this->getUploadedFiles($surveyId, $responseId);
-                file_put_contents('/tmp/webhook_debug.log', "Fichiers récupérés: " . count($files) . "\n", FILE_APPEND);
+            if (empty($responseData)) {
+                throw new Exception('Aucune donnée de réponse trouvée.');
             }
 
             // Préparation du payload
@@ -252,17 +475,50 @@ class WebhookSubmit extends PluginBase
                 'form_id' => $surveyId,
                 'response_id' => $responseId,
                 'response_data' => $responseData,
-                'attachments' => $files
             ];
 
-            file_put_contents('/tmp/webhook_debug.log', "Payload préparé: " . json_encode($payload, JSON_PRETTY_PRINT) . "\n", FILE_APPEND);
+            // Ajout des fichiers si activé
+            if ($this->get('include_files', 'Survey', $surveyId, true)) {
+                $files = $this->getUploadedFiles($surveyId, $responseId);
+                if (!empty($files)) {
+                    $payload['attachments'] = $files;
+                }
+            }
 
-            // Envoi au webhook
-            $this->sendWebhook($payload);
+            // Envoi au webhook avec retry
+            $this->retryCount = $this->get('retry_count', 'Survey', $surveyId, 3);
+            $success = false;
+            $lastError = null;
+
+            while ($this->retryCount > 0 && !$success) {
+                try {
+                    $response = $this->sendWebhook($payload);
+                    if ($response && $response['status'] === 'success') {
+                        $success = true;
+                        $this->log("Réponse envoyée avec succès (Survey: $surveyId, Response: $responseId)");
+                        break;
+                    }
+                } catch (Exception $e) {
+                    $lastError = $e;
+                    $this->retryCount--;
+                    if ($this->retryCount > 0) {
+                        sleep(2); // Attente entre les tentatives
+                    }
+                }
+            }
+
+            if (!$success) {
+                throw new Exception(
+                    "Échec de l'envoi après plusieurs tentatives. " .
+                    ($lastError ? "Dernière erreur: " . $lastError->getMessage() : "")
+                );
+            }
 
         } catch (Exception $e) {
-            file_put_contents('/tmp/webhook_debug.log', "ERREUR: " . $e->getMessage() . "\n" . $e->getTraceAsString() . "\n", FILE_APPEND);
-            $this->log('Erreur lors du traitement: ' . $e->getMessage());
+            $this->log("Erreur lors du traitement de la réponse: " . $e->getMessage(), \CLogger::LEVEL_ERROR);
+            if ($this->get('log_errors', 'Survey', $surveyId, true)) {
+                $this->errors[] = $e->getMessage();
+            }
         }
     }
 
@@ -324,82 +580,66 @@ class WebhookSubmit extends PluginBase
      */
     protected function sendWebhook($payload)
     {
-        $webhook_url = $this->get('webhook_url', null, null, 'http://localhost:8069/admission/webhook/submit');
-        $token = $this->get('webhook_token');
+        $event = $this->getEvent();
+        $surveyId = $event->get('surveyId');
         
-        file_put_contents('/tmp/webhook_debug.log', "URL Webhook: $webhook_url\n", FILE_APPEND);
+        // Récupération des paramètres
+        $webhookUrl = $this->get('webhook_url', 'Survey', $surveyId, $this->settings['webhook_url']['default']);
+        $webhookToken = $this->get('webhook_token', 'Survey', $surveyId, '');
+
+        // Préparation de la requête
+        $ch = curl_init($webhookUrl);
         
-        if (empty($token)) {
-            throw new Exception("Token de sécurité non configuré");
-        }
-        
-        // Test d'accessibilité de l'URL
-        file_put_contents('/tmp/webhook_debug.log', "Test d'accessibilité de l'URL...\n", FILE_APPEND);
-        $test_ch = curl_init($webhook_url);
-        curl_setopt($test_ch, CURLOPT_NOBODY, true);
-        curl_setopt($test_ch, CURLOPT_RETURNTRANSFER, true);
-        curl_exec($test_ch);
-        $test_code = curl_getinfo($test_ch, CURLINFO_HTTP_CODE);
-        curl_close($test_ch);
-        file_put_contents('/tmp/webhook_debug.log', "Code de test HTTP: $test_code\n", FILE_APPEND);
-        
-        // Préparation de la requête cURL
-        $ch = curl_init($webhook_url);
-        curl_setopt($ch, CURLOPT_POST, 1);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        
-        // Configuration des headers
-        $headers = [
-            'Content-Type: application/json',
-            'X-Webhook-Token: ' . $token
-        ];
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-        file_put_contents('/tmp/webhook_debug.log', "Headers: " . implode(", ", $headers) . "\n", FILE_APPEND);
-        
-        // Activation du debug cURL
-        $debug = fopen('/tmp/curl_debug.log', 'a+');
-        curl_setopt($ch, CURLOPT_VERBOSE, true);
-        curl_setopt($ch, CURLOPT_STDERR, $debug);
-        
-        // Envoi de la requête avec retry
-        $response = null;
-        $attempt = 0;
-        $success = false;
-        
-        while (!$success && $attempt < $this->retryCount) {
-            $attempt++;
-            file_put_contents('/tmp/webhook_debug.log', "Tentative d'envoi #$attempt\n", FILE_APPEND);
-            
-            $response = curl_exec($ch);
-            $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            
-            file_put_contents('/tmp/webhook_debug.log', "Code HTTP: $http_code\n", FILE_APPEND);
-            file_put_contents('/tmp/webhook_debug.log', "Réponse: $response\n", FILE_APPEND);
-            
-            if ($response === false) {
-                $error = curl_error($ch);
-                file_put_contents('/tmp/webhook_debug.log', "Erreur cURL: $error\n", FILE_APPEND);
-                
-                if ($attempt < $this->retryCount) {
-                    sleep(pow(2, $attempt)); // Exponential backoff
-                    continue;
-                }
-                
-                throw new Exception("Erreur lors de l'envoi au webhook: " . $error);
-            }
-            
-            $success = true;
-        }
+        // Configuration de cURL
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+                'X-Webhook-Token: ' . $webhookToken
+            ],
+            CURLOPT_POSTFIELDS => json_encode($payload),
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_TIMEOUT => 30,
+        ]);
+
+        // Debug log
+        $this->debugLog("Envoi au webhook: " . json_encode([
+            'url' => $webhookUrl,
+            'payload' => $payload,
+            'headers' => [
+                'X-Webhook-Token' => $webhookToken
+            ]
+        ]));
+
+        // Exécution de la requête
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
         
         curl_close($ch);
-        fclose($debug);
+
+        // Log de la réponse
+        $this->debugLog("Réponse du webhook: " . $response);
+        $this->debugLog("Code HTTP: " . $httpCode);
         
-        if (!$success) {
-            throw new Exception("Échec de l'envoi au webhook après {$this->retryCount} tentatives");
+        if ($error) {
+            $this->log("Erreur cURL: " . $error, \CLogger::LEVEL_ERROR);
+            throw new Exception("Erreur lors de l'envoi au webhook: " . $error);
         }
-        
-        return $response;
+
+        if ($httpCode >= 400) {
+            $this->log("Erreur HTTP $httpCode: " . $response, \CLogger::LEVEL_ERROR);
+            throw new Exception("Le serveur a retourné une erreur: " . $response);
+        }
+
+        $responseData = json_decode($response, true);
+        if (!$responseData) {
+            throw new Exception("Réponse invalide du serveur");
+        }
+
+        return $responseData;
     }
 
     /**

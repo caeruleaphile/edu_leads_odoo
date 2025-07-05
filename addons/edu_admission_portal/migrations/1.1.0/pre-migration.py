@@ -60,4 +60,21 @@ def migrate(cr, version):
             END IF;
         END
         $$;
+    """)
+
+    # Ajout de la colonne is_default à la table admission_mapping_line
+    cr.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 
+                FROM information_schema.columns 
+                WHERE table_name = 'admission_mapping_line' 
+                AND column_name = 'is_default'
+            ) THEN
+                ALTER TABLE admission_mapping_line 
+                ADD COLUMN is_default boolean DEFAULT false;
+            END IF;
+        END
+        $$;
     """) 

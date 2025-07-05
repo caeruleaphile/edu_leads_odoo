@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="edu_admission_portal.AttachmentPreview">
+        <div class="o_attachment_preview">
+            <div class="o_attachment_preview_header">
+                <span class="o_attachment_preview_title" t-esc="title"/>
+                <button class="btn btn-secondary o_attachment_preview_close">
+                    <i class="fa fa-times"/>
+                </button>
+            </div>
+            <div class="o_attachment_preview_content">
+                <t t-if="type == 'image'">
+                    <img t-att-src="url" alt="Preview"/>
+                </t>
+                <t t-elif="type == 'pdf'">
+                    <iframe t-att-src="url" class="o_attachment_preview_iframe"/>
+                </t>
+                <t t-else="">
+                    <div class="alert alert-warning">
+                        Ce type de fichier ne peut pas être prévisualisé.
+                    </div>
+                </t>
+            </div>
+        </div>
+    </t>
+</templates> 

@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Tree View -->
+    <record id="view_admission_mapping_line_tree" model="ir.ui.view">
+        <field name="name">admission.mapping.line.tree</field>
+        <field name="model">admission.mapping.line</field>
+        <field name="arch" type="xml">
+            <tree editable="bottom" decoration-success="mapping_quality == 'confirmed'" decoration-warning="mapping_quality == 'warning'" decoration-danger="mapping_quality == 'unmatched'">
+                <header>
+                    <button name="action_suggest_mapping" 
+                            string="🤖 Suggérer Automatiquement" 
+                            type="object" 
+                            class="btn-primary"/>
+                    <button name="action_validate_all_mapped" 
+                            string="✅ Valider Tous les Mappés" 
+                            type="object" 
+                            class="btn-success"/>
+                </header>
+                <field name="sequence" widget="handle"/>
+                <field name="mapping_id"/>
+                <field name="question_code"/>
+                <field name="question_text"/>
+                <field name="question_type"/>
+                <field name="odoo_field" 
+                       options="{'no_create_edit': False, 'placeholder': 'Choisissez dans la liste ou tapez un champ personnalisé...'}"/>
+                <field name="field_label"/>
+                <field name="mapping_quality" widget="badge" decoration-success="mapping_quality == 'confirmed'" decoration-warning="mapping_quality == 'warning'" decoration-danger="mapping_quality == 'unmatched'"/>
+                <field name="confidence_score" widget="progressbar"/>
+                <field name="is_required"/>
+                <field name="is_attachment"/>
+                <field name="status"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- Form View -->
+    <record id="view_admission_mapping_line_form" model="ir.ui.view">
+        <field name="name">admission.mapping.line.form</field>
+        <field name="model">admission.mapping.line</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_suggest_mapping" 
+                            string="🤖 Suggérer Mapping" 
+                            type="object" 
+                            class="btn-primary"/>
+                    <field name="status" widget="statusbar" statusbar_visible="draft,to_verify,validated"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="mapping_id"/>
+                            <field name="sequence"/>
+                            <field name="question_code"/>
+                            <field name="question_type"/>
+                            <field name="odoo_field" 
+                                   options="{'no_create_edit': False, 'placeholder': 'Choisissez dans la liste ou tapez un champ personnalisé...'}"/>
+                            <field name="field_label"/>
+                        </group>
+                        <group>
+                            <field name="mapping_quality" widget="badge"/>
+                            <field name="confidence_score" widget="progressbar"/>
+                            <field name="is_required"/>
+                            <field name="is_attachment"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Question">
+                            <field name="question_text" widget="text"/>
+                        </page>
+                        <page string="Mapping Details">
+                            <group>
+                                <field name="justification"/>
+                                <field name="notes"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Search View -->
+    <record id="view_admission_mapping_line_search" model="ir.ui.view">
+        <field name="name">admission.mapping.line.search</field>
+        <field name="model">admission.mapping.line</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="question_code"/>
+                <field name="question_text"/>
+                <field name="odoo_field"/>
+                <field name="field_label"/>
+                <separator/>
+                <filter string="Confirmés" name="confirmed" domain="[('mapping_quality', '=', 'confirmed')]"/>
+                <filter string="À Vérifier" name="warning" domain="[('mapping_quality', '=', 'warning')]"/>
+                <filter string="Non Mappés" name="unmatched" domain="[('mapping_quality', '=', 'unmatched')]"/>
+                <separator/>
+                <filter string="Brouillon" name="draft" domain="[('status', '=', 'draft')]"/>
+                <filter string="À Vérifier" name="to_verify" domain="[('status', '=', 'to_verify')]"/>
+                <filter string="Validé" name="validated" domain="[('status', '=', 'validated')]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Mapping" name="group_by_mapping" context="{'group_by': 'mapping_id'}"/>
+                    <filter string="Type de Question" name="group_by_type" context="{'group_by': 'question_type'}"/>
+                    <filter string="Qualité" name="group_by_quality" context="{'group_by': 'mapping_quality'}"/>
+                    <filter string="Statut" name="group_by_status" context="{'group_by': 'status'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="action_admission_mapping_line" model="ir.actions.act_window">
+        <field name="name">Lignes de Mapping</field>
+        <field name="res_model">admission.mapping.line</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Créez votre première ligne de mapping !
+            </p>
+            <p>
+                Les lignes de mapping définissent comment chaque question du formulaire est convertie en donnée candidate.
+            </p>
+        </field>
+    </record>
+</odoo> 

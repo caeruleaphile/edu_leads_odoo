@@ -1,7 +1,10 @@
 import logging
 import json
+import re
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError, ValidationError, AccessError
+from datetime import datetime, timedelta
+import traceback
 
 _logger = logging.getLogger(__name__)
 
@@ -215,10 +218,8 @@ class AdmissionCandidate(models.Model):
         tracking=True,
     )
     response_id = fields.Char(
-        string='ID Réponse LimeSurvey',
-        required=True,
+        string='ID Réponse',
         readonly=True,
-        tracking=True,
         help="Identifiant unique de la réponse dans LimeSurvey",
     )
     response_data = fields.Json(
@@ -284,6 +285,11 @@ class AdmissionCandidate(models.Model):
     active = fields.Boolean(
         default=True,
         tracking=True,
+    )
+
+    color = fields.Integer(
+        string='Color Index',
+        help='Color index for kanban view',
     )
 
     # Validation Checkboxes
@@ -415,23 +421,65 @@ class AdmissionCandidate(models.Model):
         groups='edu_admission_portal.group_admission_admin,edu_admission_portal.group_admission_reviewer',
     )
 
+    stage_id = fields.Many2one(
+        'admission.candidate.stage',
+        string='Étape',
+        domain="[('form_template_id', '=', form_id)]",
+        tracking=True,
+        group_expand='_read_group_stage_ids',
+        copy=False,
+    )
+
+    user_id = fields.Many2one(
+        'res.users',
+        string='Responsable',
+        default=lambda self: self.env.user,
+        tracking=True,
+    )
+
+    # Mapping des statuts autorisés par code d'étape
+    _STAGE_STATUS_MAPPING = {
+        'new': ['new'],
+        'pending_review': ['new', 'complete'],
+        'complete': ['complete'],
+        'under_review': ['complete', 'shortlisted'],
+        'waitlist': ['shortlisted'],
+        'interview': ['shortlisted', 'invited'],
+        'preselected': ['invited', 'accepted'],
+        'accepted': ['accepted'],
+        'rejected': ['refused'],
+        'archived': ['refused', 'accepted'],
+    }
+
     _sql_constraints = [
         ('response_id_form_uniq', 'unique(response_id,form_id)',
          'Une réponse avec cet ID existe déjà pour ce formulaire!')
     ]
 
+    import_batch_id = fields.Many2one(
+        'admission.import.batch',
+        string="Lot d'Import",
+        readonly=True,
+        ondelete='set null',
+        help="Lot d'import lors de la création du candidat",
+    )
+
     @api.depends('first_name', 'last_name')
     def _compute_name(self):
         """Calcule le nom complet du candidat."""
         for candidate in self:
-            if candidate.first_name and candidate.last_name:
-                candidate.name = f"{candidate.first_name} {candidate.last_name}"
-            elif candidate.last_name:
-                candidate.name = candidate.last_name
-            elif candidate.first_name:
-                candidate.name = candidate.first_name
-            else:
-                candidate.name = _('Nouveau Candidat')
+            try:
+                if candidate.first_name and candidate.last_name:
+                    candidate.name = f"{candidate.first_name} {candidate.last_name}"
+                elif candidate.last_name:
+                    candidate.name = candidate.last_name
+                elif candidate.first_name:
+                    candidate.name = candidate.first_name
+                else:
+                    candidate.name = f"Nouveau candidat ({candidate.id})"
+            except Exception as e:
+                _logger.error(f"Erreur lors du calcul du nom complet: {str(e)}")
+                candidate.name = f"Nouveau candidat ({candidate.id})"
 
     @api.depends('response_data')
     def _compute_contact_info(self):
@@ -439,62 +487,40 @@ class AdmissionCandidate(models.Model):
         for candidate in self:
             if not candidate.response_data:
                 continue
-
-            try:
-                data = candidate.response_data
                 
-                # Mapping des champs LimeSurvey vers les champs Odoo
-                field_mapping = {
-                    'civility': ['G01Q01', 'Civilité'],
-                    'first_name': ['G01Q02', 'Prénom', 'FirstName'],
-                    'last_name': ['G01Q03', 'Nom', 'LastName'],
-                    'email': ['G01Q04', 'Email', 'EmailAddress'],
-                    'phone': ['G01Q05', 'Téléphone'],
-                    'cin_number': ['G01Q06', 'CIN'],
-                    'massar_code': ['G01Q07', 'Code MASSAR'],
-                    'birth_date': ['G01Q08', 'Date de naissance'],
-                    'birth_city': ['G01Q09', 'Ville de naissance'],
-                    'birth_country': ['G01Q10', 'Pays de naissance'],
-                    'nationality': ['G01Q11', 'Nationalité'],
-                    'address': ['G01Q12', 'Adresse'],
-                    'postal_code': ['G01Q13', 'Code postal'],
-                    'city': ['G01Q14', 'Ville'],
-                    'residence_country': ['G01Q15', 'Pays de résidence'],
+            _logger.info(f"Calcul des informations de contact pour le candidat {candidate.id}")
+            _logger.info(f"Données de réponse: {candidate.response_data}")
+            
+            try:
+                # Recherche des champs dans les données de réponse
+                response_data = candidate.response_data
+                
+                # Civilité (G01Q01)
+                civility_mapping = {
+                    'M.': 'mr',
+                    'Mme': 'mrs',
+                    'Mlle': 'ms'
                 }
-
-                # Extraction des données
-                for field, possible_keys in field_mapping.items():
-                    field_value = False
-                    for key in possible_keys:
-                        if data.get(key):
-                            field_value = data[key]
-                            break
-                    
-                    # Vérification des champs requis
-                    if field in ['first_name', 'last_name', 'email'] and not field_value:
-                        raise ValidationError(_(
-                            "Le champ %s est requis mais n'a pas été trouvé dans les données du formulaire"
-                        ) % field)
-                    
-                    setattr(candidate, field, field_value)
-
-                # Conversion de la date de naissance si présente
-                if candidate.birth_date:
-                    try:
-                        candidate.birth_date = fields.Date.from_string(candidate.birth_date)
-                    except Exception:
-                        candidate.birth_date = False
-
-            except ValidationError as ve:
-                raise ve
+                civility_value = response_data.get('G01Q01')
+                candidate.civility = civility_mapping.get(civility_value, 'mr')
+                
+                # Nom (G01Q02)
+                candidate.last_name = response_data.get('G01Q02', '')
+                
+                # Prénom (G01Q03)
+                candidate.first_name = response_data.get('G01Q03', '')
+                
+                # Email (G03Q14)
+                candidate.email = response_data.get('G03Q14', '')
+                
+                # Téléphone (G03Q15)
+                candidate.phone = response_data.get('G03Q15', '')
+                
+                _logger.info(f"Informations calculées: {candidate.first_name} {candidate.last_name} ({candidate.email})")
+                
             except Exception as e:
-                _logger.error(
-                    "Erreur lors du calcul des informations de contact pour le candidat %s: %s",
-                    candidate.id, str(e)
-                )
-                # Réinitialisation des champs en cas d'erreur
-                for field in field_mapping.keys():
-                    setattr(candidate, field, False)
+                _logger.error(f"Erreur lors du calcul des informations de contact: {str(e)}")
+                _logger.error(f"Traceback: {traceback.format_exc()}")
 
     @api.depends('attachment_ids')
     def _compute_attachment_count(self):
@@ -564,174 +590,466 @@ class AdmissionCandidate(models.Model):
         super().action_refuse()
         self._send_template_email('edu_admission_portal.email_template_admission_refused')
 
+    @api.constrains('stage_id', 'form_id')
+    def _check_stage_form_consistency(self):
+        """Vérifie que l'étape appartient bien au formulaire du candidat."""
+        for record in self:
+            if record.stage_id and record.stage_id.form_template_id != record.form_id:
+                raise ValidationError(_(
+                    "L'étape %(stage)s ne peut pas être utilisée avec le formulaire %(form)s. "
+                    "Les étapes sont spécifiques à chaque formulaire.",
+                    stage=record.stage_id.name,
+                    form=record.form_id.name
+                ))
+
+    @api.constrains('status', 'stage_id')
+    def _check_status_stage_consistency(self):
+        """Vérifie la cohérence entre le statut et l'étape du candidat."""
+        for record in self:
+            if not record.stage_id or not record.status:
+                continue
+            
+            allowed_statuses = self._STAGE_STATUS_MAPPING.get(record.stage_id.code, [])
+            if record.status not in allowed_statuses:
+                raise ValidationError(_(
+                    "Le statut %(status)s n'est pas autorisé pour l'étape %(stage)s. "
+                    "Statuts autorisés : %(allowed)s",
+                    status=dict(self._fields['status'].selection).get(record.status),
+                    stage=record.stage_id.name,
+                    allowed=', '.join(dict(self._fields['status'].selection).get(s) for s in allowed_statuses)
+                ))
+
+    @api.constrains('attachment_ids', 'form_id')
+    def _check_required_attachments(self):
+        """Vérifie la présence des pièces jointes requises."""
+        for record in self:
+            # TODO: Implémenter la logique de vérification des pièces requises
+            # selon le formulaire et le mapping
+            required_docs = record.form_id.get_required_documents()
+            if not required_docs:
+                continue
+
+            attached_types = set(record.attachment_ids.mapped('res_model'))
+            missing_docs = [doc for doc in required_docs if doc not in attached_types]
+            
+            if missing_docs:
+                raise ValidationError(_(
+                    "Documents obligatoires manquants : %(docs)s",
+                    docs=', '.join(missing_docs)
+                ))
+
+    def action_move_to_stage(self, stage):
+        """
+        Déplace le candidat vers une nouvelle étape en synchronisant le statut.
+        
+        Args:
+            stage: L'objet admission.candidate.stage cible
+            
+        Returns:
+            bool: True si le déplacement a réussi
+            
+        Raises:
+            ValidationError: Si le déplacement n'est pas autorisé
+        """
+        self.ensure_one()
+        
+        # Vérifie que l'étape appartient au bon formulaire
+        if stage.form_template_id != self.form_id:
+            raise ValidationError(_(
+                "Impossible de déplacer vers une étape d'un autre formulaire."
+            ))
+        
+        # Détermine le nouveau statut selon l'étape
+        new_status = None
+        allowed_statuses = self._STAGE_STATUS_MAPPING.get(stage.code, [])
+        
+        # Si le statut actuel est autorisé dans la nouvelle étape, on le garde
+        if self.status in allowed_statuses:
+            new_status = self.status
+        # Sinon on prend le premier statut autorisé
+        elif allowed_statuses:
+            new_status = allowed_statuses[0]
+        else:
+            raise ValidationError(_(
+                "Aucun statut valide trouvé pour l'étape %(stage)s",
+                stage=stage.name
+            ))
+            
+        # Met à jour l'étape et le statut
+        self.write({
+            'stage_id': stage.id,
+            'status': new_status,
+        })
+        
+        return True
+
     @api.model
     def create_from_webhook(self, form_id, response_id, response_data, attachments=None):
-        """Crée un candidat à partir des données du webhook."""
+        """
+        Crée un candidat à partir des données du webhook LimeSurvey.
+        
+        Args:
+            form_id (int): ID du formulaire LimeSurvey
+            response_id (str): ID de la réponse LimeSurvey
+            response_data (dict): Données de la réponse
+            attachments (list): Liste des pièces jointes
+            
+        Returns:
+            record: Le candidat créé
+        """
+        _logger.info(
+            "Création d'un candidat depuis webhook - Form: %s, Response: %s",
+            form_id, response_id
+        )
+        
         try:
-            # Validation des données requises
-            if not form_id or not response_id or not response_data:
-                raise ValidationError(_("Données de webhook incomplètes"))
+            # Récupération du template de formulaire
+            form_template = self.env['admission.form.template'].sudo().search([
+                ('sid', '=', str(form_id))
+            ], limit=1)
+            
+            if not form_template:
+                raise ValidationError(_(
+                    "Formulaire non trouvé pour l'ID LimeSurvey %s"
+                ) % form_id)
 
+            # Vérification si la réponse existe déjà
+            existing = self.sudo().search([
+                ('form_id', '=', form_template.id),
+                ('response_id', '=', str(response_id))
+            ], limit=1)
+            
+            if existing:
+                _logger.warning(
+                    "Réponse déjà existante - Form: %s, Response: %s",
+                    form_id, response_id
+                )
+                return existing
+
+            # Traitement des données du formulaire
+            processed_data = form_template._process_survey_response(response_data)
+            
             # Création du candidat
             vals = {
-                'form_id': form_id,
-                'response_id': response_id,
-                'response_data': response_data,
+                'form_id': form_template.id,
+                'response_id': str(response_id),
+                'response_data': processed_data,
                 'status': 'new',
+                'submission_date': fields.Datetime.now(),
             }
 
-            candidate = self.create(vals)
+            # Création du candidat
+            candidate = self.sudo().create(vals)
+            _logger.info("Candidat créé avec succès - ID: %s", candidate.id)
 
             # Traitement des pièces jointes
             if attachments:
-                attachment_ids = []
-                for att_data in attachments:
-                    attachment = self.env['ir.attachment'].create({
-                        'name': att_data['name'],
-                        'datas': att_data['content'],
-                        'res_model': self._name,
-                        'res_id': candidate.id,
-                    })
-                    attachment_ids.append(attachment.id)
-                
-                if attachment_ids:
-                    candidate.write({'attachment_ids': [(6, 0, attachment_ids)]})
+                try:
+                    self._validate_attachments(attachments, form_template)
+                    self._create_attachments(candidate.id, attachments)
+                    _logger.info(
+                        "Pièces jointes créées pour le candidat %s",
+                        candidate.id
+                    )
+                except Exception as e:
+                    _logger.error(
+                        "Erreur lors du traitement des pièces jointes: %s",
+                        str(e)
+                    )
+                    # On ne lève pas l'erreur pour ne pas bloquer la création
+
+            # Traitement des données du formulaire
+            candidate._process_form_data()
+            
+            # Vérification de la complétude
+            candidate._check_required_fields()
+            
+            # Notification
+            candidate.message_post(
+                body=_("Candidature créée depuis le formulaire LimeSurvey"),
+                message_type='notification'
+            )
 
             return candidate
 
         except Exception as e:
-            _logger.error("Erreur lors de la création du candidat: %s", str(e))
-            raise ValidationError(_("Erreur lors de la création du candidat: %s") % str(e))
+            _logger.error(
+                "Erreur lors de la création du candidat - Form: %s, Response: %s\n%s",
+                form_id, response_id, traceback.format_exc()
+            )
+            raise ValidationError(_(
+                "Erreur lors de la création du candidat: %s"
+            ) % str(e))
 
-    @api.depends('response_data')
-    def _compute_academic_level(self):
-        """Extrait le niveau académique des réponses."""
-        for candidate in self:
-            if not candidate.response_data:
-                candidate.academic_level = False
+    def _process_form_data(self):
+        """Traite les données du formulaire pour mettre à jour les champs du candidat."""
+        self.ensure_one()
+        
+        if not self.response_data:
+            return
+
+        try:
+            # Récupération du mapping
+            mapping = self.env['admission.form.mapping'].search([
+                ('form_template_id', '=', self.form_id.id),
+                ('state', '=', 'validated')
+                ], limit=1)
+                
+            if not mapping:
+                _logger.warning(
+                    "Aucun mapping validé trouvé pour le formulaire %s",
+                    self.form_id.name
+                )
+                return
+
+            # Traitement des données
+            processed_data = {}
+            attachments_data = []
+
+            # Pour chaque ligne de mapping
+            for line in mapping.mapping_line_ids.filtered(lambda l: l.status == 'validated'):
+                try:
+                    # Récupération de la valeur source
+                    value = self.response_data.get(line.question_code)
+                    
+                    if value is None:
+                        continue
+
+                    # Si c'est une pièce jointe
+                    if line.is_attachment and isinstance(value, dict):
+                        attachments_data.append({
+                            'name': value.get('name', 'Sans nom'),
+                            'data': value.get('content'),
+                            'type': value.get('type', 'application/octet-stream'),
+                            'field': line.question_code
+                        })
+                        continue
+
+                    # Transformation de la valeur si nécessaire
+                    if line.mapping_type == 'transform' and line.transform_python:
+                        try:
+                            value = line.transform_value(value)
+                        except Exception as e:
+                            _logger.error(
+                                "Erreur lors de la transformation pour %s: %s",
+                                line.question_code, str(e)
+                            )
+                            continue
+
+                    # Validation de la valeur si nécessaire
+                    if line.validation_python:
+                        try:
+                            if not line.validate_value(value):
+                                _logger.warning(
+                                    "Validation échouée pour %s: %s",
+                                    line.question_code, value
+                                )
+                                continue
+                        except Exception as e:
+                            _logger.error(
+                                "Erreur lors de la validation pour %s: %s",
+                                line.question_code, str(e)
+                            )
+                            continue
+
+                    # Ajout de la valeur aux données traitées
+                    if line.odoo_field:
+                        processed_data[line.odoo_field] = value
+                
+                except Exception as e:
+                    _logger.error(
+                        "Erreur lors du traitement de la ligne %s: %s",
+                        line.question_code, str(e)
+                    )
+                    continue
+
+            # Mise à jour des champs du candidat
+            if processed_data:
+                self.write(processed_data)
+                _logger.info(
+                    "Données mises à jour pour le candidat %s: %s",
+                    self.id, processed_data
+                )
+
+            # Traitement des pièces jointes
+            if attachments_data:
+                self._process_attachments(attachments_data)
+
+            # Vérification de la complétude
+            self._check_required_fields()
+            
+        except Exception as e:
+            _logger.error(
+                "Erreur lors du traitement des données du formulaire: %s",
+                str(e)
+            )
+            raise
+
+    def _process_attachments(self, attachments_data):
+        """Traite les pièces jointes du formulaire."""
+        for attachment in attachments_data:
+            try:
+                # Création de la pièce jointe
+                attachment_vals = {
+                    'name': attachment['name'],
+                    'datas': attachment['data'],
+                    'mimetype': attachment['type'],
+                    'res_model': self._name,
+                    'res_id': self.id,
+                }
+
+                # Création de la pièce jointe
+                attachment_id = self.env['ir.attachment'].create(attachment_vals)
+
+                # Ajout au candidat
+                self.write({
+                    'attachment_ids': [(4, attachment_id.id)]
+                })
+
+                _logger.info(
+                    "Pièce jointe créée pour le candidat %s: %s",
+                    self.id, attachment['name']
+                )
+
+            except Exception as e:
+                _logger.error(
+                    "Erreur lors de la création de la pièce jointe %s: %s",
+                    attachment.get('name', 'unknown'), str(e)
+                )
                 continue
 
-            data = candidate.response_data
-            # Cherche dans les champs communs
-            level_fields = ['niveau', 'level', 'diplome', 'diploma', 'education_level']
-            
-            for field in level_fields:
-                if field in data:
-                    value = data[field].lower()
-                    if 'bac+5' in value or 'master' in value:
-                        candidate.academic_level = 'bac+5'
-                    elif 'bac+4' in value or 'master 1' in value:
-                        candidate.academic_level = 'bac+4'
-                    elif 'bac+3' in value or 'licence' in value:
-                        candidate.academic_level = 'bac+3'
-                    elif 'bac+2' in value or 'dut' in value or 'bts' in value:
-                        candidate.academic_level = 'bac+2'
-                    elif 'bac' in value:
-                        candidate.academic_level = 'bac'
-                    break
-            else:
-                candidate.academic_level = False
+    @api.model
+    def _clean_incomplete_candidates(self, days=30):
+        """
+        Nettoie les candidatures incomplètes après un certain nombre de jours.
+        
+        Args:
+            days (int): Nombre de jours avant suppression
+        """
+        deadline = fields.Datetime.now() - timedelta(days=days)
+        candidates = self.search([
+            ('create_date', '<', deadline),
+            ('is_complete', '=', False),
+            ('status', '=', 'new')
+        ])
+        
+        for candidate in candidates:
+            try:
+                # Suppression des pièces jointes
+                candidate.attachment_ids.unlink()
+                # Suppression du candidat
+                candidate.unlink()
+            except Exception as e:
+                _logger.error(
+                    "Erreur lors de la suppression du candidat %s: %s",
+                    candidate.id, str(e)
+                )
+                continue
+
+        _logger.info("%d candidatures incomplètes nettoyées", len(candidates))
 
     @api.model
-    def _compute_dashboard_data(self):
-        """Calcule les KPIs du tableau de bord."""
-        domain = self._get_dashboard_domain()
+    def _auto_check_completeness(self):
+        """
+        Vérifie automatiquement si les dossiers sont complets.
+        Cette méthode est appelée par le CRON.
+        """
+        candidates = self.search([
+            ('status', '=', 'new'),
+            ('is_complete', '=', False)
+        ])
         
-        for record in self:
-            record.total_candidates = self.search_count(domain)
-            record.accepted_candidates = self.search_count(domain + [('status', '=', 'accepted')])
-            record.pending_candidates = self.search_count(
-                domain + [('status', 'in', ['new', 'complete', 'shortlisted', 'invited'])]
-            )
-            record.refused_candidates = self.search_count(domain + [('status', '=', 'refused')])
-
-    @api.model
-    def _compute_status_distribution(self):
-        """Calcule la distribution des statuts pour le graphique circulaire."""
-        domain = self._get_dashboard_domain()
-        
-        for record in self:
-            data = []
-            for status, label in self._fields['status'].selection:
-                count = self.search_count(domain + [('status', '=', status)])
-                if count:
-                    data.append({
-                        'label': label,
-                        'value': count,
-                        'color': self._get_status_color(status),
+        for candidate in candidates:
+            try:
+                # Vérification de la complétude
+                if candidate._check_required_fields() and candidate._check_required_attachments():
+                    candidate.write({
+                        'status': 'complete',
+                        'is_complete': True
                     })
-            
-            record.status_distribution = {
-                'data': data,
-                'title': 'Distribution par Statut',
-            }
+                    candidate.message_post(
+                        body=_("Dossier marqué comme complet automatiquement"),
+                        message_type='notification'
+                    )
+            except Exception as e:
+                _logger.error(
+                    "Erreur lors de la vérification de la complétude pour le candidat %s: %s",
+                    candidate.id, str(e)
+                )
+                continue
 
-    @api.model
-    def _compute_submission_timeline(self):
-        """Calcule l'évolution des candidatures dans le temps."""
-        domain = self._get_dashboard_domain()
+    def _check_required_fields(self):
+        """
+        Vérifie si tous les champs requis sont remplis.
         
-        for record in self:
-            # Groupe par mois
-            self.env.cr.execute("""
-                SELECT DATE_TRUNC('month', submission_date) as month,
-                       COUNT(*) as count
-                FROM admission_candidate
-                WHERE submission_date >= NOW() - INTERVAL '1 year'
-                GROUP BY DATE_TRUNC('month', submission_date)
-                ORDER BY month
-            """)
-            
-            data = self.env.cr.dictfetchall()
-            record.submission_timeline = {
-                'labels': [d['month'].strftime('%B %Y') for d in data],
-                'datasets': [{
-                    'label': 'Candidatures',
-                    'data': [d['count'] for d in data],
-                }],
-            }
+        Returns:
+            bool: True si tous les champs requis sont remplis
+        """
+        self.ensure_one()
+        
+        # Récupération des mappings requis
+        required_mappings = self.env['admission.mapping.line'].sudo().search([
+            ('mapping_id.form_template_id', '=', self.form_id.id),
+            ('status', '=', 'validated'),
+            ('is_required', '=', True)
+        ])
 
-    @api.model
-    def _compute_form_distribution(self):
-        """Calcule la distribution des candidatures par formulaire."""
-        domain = self._get_dashboard_domain()
-        
-        for record in self:
-            data = []
-            forms = self.env['admission.form.template'].search([])
-            
-            for form in forms:
-                count = self.search_count(domain + [('form_id', '=', form.id)])
-                if count:
-                    data.append({
-                        'label': form.name,
-                        'value': count,
-                    })
-            
-            record.form_distribution = {
-                'data': data,
-                'title': 'Candidatures par Formulaire',
-            }
+        # Vérification de chaque champ requis
+        for mapping in required_mappings:
+            value = self.response_data.get(mapping.question_code)
+            if value is None or value == '':
+                return False
 
-    @api.model
-    def _compute_academic_level_distribution(self):
-        """Calcule la distribution des niveaux académiques."""
-        domain = self._get_dashboard_domain()
+        return True
+
+    def _validate_attachments(self, attachments, form):
+        """Valide les pièces jointes avant import."""
+        ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 
+                        'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+        MAX_SIZE = 10 * 1024 * 1024  # 10 MB
         
-        for record in self:
-            data = []
-            for level, label in self._fields['academic_level'].selection:
-                count = self.search_count(domain + [('academic_level', '=', level)])
-                if count:
-                    data.append({
-                        'label': label,
-                        'value': count,
-                    })
+        for name, content, mime_type in attachments:
+            # Validation du type MIME
+            if mime_type not in ALLOWED_TYPES:
+                raise ValidationError(_(
+                    "Type de fichier non autorisé pour %(name)s (type: %(type)s)",
+                    name=name, type=mime_type
+                ))
             
-            record.academic_level_distribution = {
-                'data': data,
-                'title': 'Distribution par Niveau',
-            }
+            # Validation de la taille
+            if len(content) > MAX_SIZE:
+                raise ValidationError(_(
+                    "Fichier trop volumineux : %(name)s (max: 10 MB)",
+                    name=name
+                ))
+            
+            # Validation du nom
+            if not re.match(r'^[\w\-. ]+$', name):
+                raise ValidationError(_(
+                    "Nom de fichier invalide : %(name)s",
+                    name=name
+                ))
+
+    def _create_attachments(self, candidate_id, attachments):
+        """Crée les pièces jointes pour un candidat."""
+        IrAttachment = self.env['ir.attachment']
+        attachment_ids = []
+        
+        for name, content, mime_type in attachments:
+            attachment = IrAttachment.create({
+                'name': name,
+                'res_model': self._name,
+                'res_id': candidate_id,
+                'type': 'binary',
+                'datas': content,
+                'mimetype': mime_type,
+            })
+            attachment_ids.append(attachment.id)
+        
+        if attachment_ids:
+            self.browse(candidate_id).write({
+                'attachment_ids': [(4, att_id) for att_id in attachment_ids]
+            })
 
     @api.depends('academic_score', 'experience_score', 'motivation_score')
     def _compute_evaluation_score(self):
@@ -1023,3 +1341,338 @@ class AdmissionCandidate(models.Model):
                 candidate.avg_sem4 = False
                 candidate.avg_sem5 = False
                 candidate.avg_sem6 = False 
+
+    @api.model
+    def _read_group_stage_ids(self, stages, domain, order):
+        """Utilisé pour toujours afficher toutes les étapes dans la vue kanban."""
+        if self._context.get('default_form_id'):
+            search_domain = [('form_template_id', '=', self._context['default_form_id'])]
+        else:
+            search_domain = []
+        return self.env['admission.candidate.stage'].search(search_domain, order=order)
+
+    @api.model
+    def create(self, vals):
+        """Surcharge de create pour affecter l'étape par défaut."""
+        record = super().create(vals)
+        
+        # Si pas d'étape définie et qu'on a un formulaire
+        if not record.stage_id and record.form_id:
+            # Recherche de l'étape par défaut
+            default_stage = self.env['admission.candidate.stage'].search([
+                ('form_template_id', '=', record.form_id.id),
+                ('is_default', '=', True)
+            ], limit=1)
+            
+            if default_stage:
+                record.stage_id = default_stage.id
+            else:
+                _logger.warning(
+                    "Aucune étape par défaut trouvée pour le formulaire %s (ID: %s)",
+                    record.form_id.name, record.form_id.id
+                )
+        
+        return record
+
+    @api.onchange('form_id')
+    def _onchange_form_id(self):
+        """Reset stage_id when form changes to avoid invalid stages."""
+        if self.form_id:
+            self.stage_id = False
+
+    def write(self, vals):
+        """Surcharge de write pour gérer le changement de formulaire."""
+        if 'form_id' in vals and not vals.get('stage_id'):
+            # Recherche de l'étape par défaut du nouveau formulaire
+            default_stage = self.env['admission.candidate.stage'].search([
+                ('form_template_id', '=', vals['form_id']),
+                ('is_default', '=', True)
+            ], limit=1)
+            
+            if default_stage:
+                vals['stage_id'] = default_stage.id
+            else:
+                _logger.warning(
+                    "Aucune étape par défaut trouvée pour le formulaire ID: %s",
+                    vals['form_id']
+                )
+                vals['stage_id'] = False
+                
+        return super().write(vals)
+
+    @api.depends('response_data', 'academic_level', 'experience_years')
+    def _compute_scores(self):
+        """Calcule automatiquement les scores du candidat."""
+        for candidate in self:
+            # Score académique (0-40 points)
+            academic_score = 0
+            if candidate.academic_level:
+                ACADEMIC_SCORES = {
+                    'bac': 20,
+                    'bac+2': 25,
+                    'bac+3': 30,
+                    'bac+4': 35,
+                    'bac+5': 40
+                }
+                academic_score = ACADEMIC_SCORES.get(candidate.academic_level, 0)
+            
+            # Score d'expérience (0-30 points)
+            experience_score = min(candidate.experience_years * 5, 30)
+            
+            # Score de motivation (0-30 points)
+            motivation_score = 0
+            if candidate.response_data:
+                # Analyse des réponses aux questions de motivation
+                motivation_keys = ['motivation', 'projet', 'objectifs', 'ambitions']
+                responses = []
+                for key in motivation_keys:
+                    for field, value in candidate.response_data.items():
+                        if key in field.lower() and isinstance(value, str):
+                            responses.append(value)
+                
+                # Évaluation basée sur la longueur et la qualité des réponses
+                for response in responses:
+                    # Longueur (0-10 points)
+                    words = len(response.split())
+                    length_score = min(words / 50, 1) * 10
+                    
+                    # Mots clés positifs (0-10 points)
+                    POSITIVE_KEYWORDS = [
+                        'passion', 'objectif', 'projet', 'ambition', 'motivation',
+                        'réussite', 'développement', 'apprentissage', 'challenge',
+                        'innovation', 'excellence', 'engagement', 'détermination'
+                    ]
+                    keyword_count = sum(1 for word in POSITIVE_KEYWORDS if word in response.lower())
+                    keyword_score = min(keyword_count * 2, 10)
+                    
+                    # Score total pour cette réponse
+                    response_score = (length_score + keyword_score) / len(responses)
+                    motivation_score += response_score
+            
+            # Mise à jour des scores
+            candidate.academic_score = academic_score
+            candidate.experience_score = experience_score
+            candidate.motivation_score = motivation_score
+            
+            # Score total et recommandation
+            total_score = academic_score + experience_score + motivation_score
+            candidate.total_score = total_score
+            
+            # Recommandation automatique
+            if total_score >= 80:
+                candidate.recommendation = 'strong_accept'
+            elif total_score >= 60:
+                candidate.recommendation = 'accept'
+            elif total_score >= 40:
+                candidate.recommendation = 'review'
+            else:
+                candidate.recommendation = 'reject'
+
+    def action_evaluate(self):
+        """Lance l'évaluation automatique du candidat."""
+        self.ensure_one()
+        
+        if not self.response_data:
+            raise ValidationError(_("Impossible d'évaluer un candidat sans réponses"))
+        
+        try:
+            # Force le recalcul des scores
+            self._compute_scores()
+            
+            # Crée une note d'évaluation
+            self.env['mail.message'].create({
+                'model': self._name,
+                'res_id': self.id,
+                'message_type': 'comment',
+                'body': _("""
+                    <strong>Évaluation Automatique</strong><br/>
+                    Score académique: %(academic)s/40<br/>
+                    Score d'expérience: %(experience)s/30<br/>
+                    Score de motivation: %(motivation)s/30<br/>
+                    <br/>
+                    Score total: %(total)s/100<br/>
+                    Recommandation: %(recommendation)s
+                """) % {
+                    'academic': round(self.academic_score, 1),
+                    'experience': round(self.experience_score, 1),
+                    'motivation': round(self.motivation_score, 1),
+                    'total': round(self.total_score, 1),
+                    'recommendation': dict(self._fields['recommendation'].selection).get(
+                        self.recommendation, ''
+                    )
+                }
+            })
+            
+            # Met à jour le statut si nécessaire
+            if self.status == 'new':
+                self.write({'status': 'evaluated'})
+            
+        except Exception as e:
+            raise ValidationError(_(
+                "Erreur lors de l'évaluation automatique: %s", str(e)
+            ))
+
+    def action_schedule_interview(self):
+        """Planifie un entretien pour le candidat."""
+        self.ensure_one()
+        
+        # Vérifie que le candidat peut être invité
+        if self.status not in ['evaluated', 'shortlisted']:
+            raise ValidationError(_(
+                "Le candidat doit être évalué ou présélectionné pour planifier un entretien"
+            ))
+        
+        # Crée un événement calendrier
+        calendar_event = self.env['calendar.event'].create({
+            'name': _('Entretien - %s') % self.name,
+            'start': fields.Datetime.now() + timedelta(days=7),  # Par défaut dans 7 jours
+            'stop': fields.Datetime.now() + timedelta(days=7, hours=1),  # Durée 1h
+            'duration': 1.0,
+            'partner_ids': [(4, self.partner_id.id)] if self.partner_id else False,
+            'user_id': self.env.user.id,
+            'admission_candidate_id': self.id,
+        })
+        
+        # Met à jour le statut du candidat
+        self.write({
+            'status': 'interview_scheduled',
+            'interview_date': calendar_event.start,
+        })
+        
+        # Envoie l'invitation par email
+        if self.email:
+            template = self.env.ref('edu_admission_portal.email_template_interview_invitation')
+            template.send_mail(self.id, force_send=True)
+        
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'calendar.event',
+            'res_id': calendar_event.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
+
+    def action_record_interview_feedback(self):
+        """Enregistre le feedback d'entretien."""
+        self.ensure_one()
+        
+        if self.status != 'interview_scheduled':
+            raise ValidationError(_("L'entretien doit être planifié pour enregistrer un feedback"))
+        
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Feedback Entretien'),
+            'res_model': 'admission.interview.feedback.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_candidate_id': self.id,
+                'default_interview_date': self.interview_date,
+            }
+        }
+
+    @api.depends('status')
+    def _compute_dashboard_data(self):
+        """Compute dashboard KPI data"""
+        domain = self._get_dashboard_domain()
+        all_candidates = self.env['admission.candidate'].search(domain)
+        
+        for record in self:
+            record.total_candidates = len(all_candidates)
+            record.accepted_candidates = len(all_candidates.filtered(lambda r: r.status == 'accepted'))
+            record.pending_candidates = len(all_candidates.filtered(lambda r: r.status in ['new', 'complete', 'shortlisted', 'invited']))
+            record.refused_candidates = len(all_candidates.filtered(lambda r: r.status == 'refused'))
+
+    @api.depends('status')
+    def _compute_status_distribution(self):
+        """Compute status distribution for pie chart"""
+        domain = self._get_dashboard_domain()
+        candidates = self.env['admission.candidate'].search(domain)
+        
+        status_counts = {}
+        status_labels = dict(self._fields['status'].selection)
+        
+        for status, _ in self._fields['status'].selection:
+            count = len(candidates.filtered(lambda r: r.status == status))
+            if count > 0:  # Only include non-zero counts
+                status_counts[status_labels[status]] = count
+        
+        for record in self:
+            record.status_distribution = {
+                'labels': list(status_counts.keys()),
+                'datasets': [{
+                    'data': list(status_counts.values()),
+                    'backgroundColor': [self._get_status_color(status) for status in status_counts.keys()]
+                }]
+            }
+
+    @api.depends('submission_date')
+    def _compute_submission_timeline(self):
+        """Compute submission timeline for line chart"""
+        domain = self._get_dashboard_domain()
+        candidates = self.env['admission.candidate'].search(domain)
+        
+        # Group by month
+        timeline_data = {}
+        for candidate in candidates:
+            month = candidate.submission_date.strftime('%Y-%m')
+            timeline_data[month] = timeline_data.get(month, 0) + 1
+        
+        # Sort by month
+        sorted_months = sorted(timeline_data.keys())
+        
+        for record in self:
+            record.submission_timeline = {
+                'labels': sorted_months,
+                'datasets': [{
+                    'label': 'Candidatures',
+                    'data': [timeline_data[month] for month in sorted_months],
+                    'borderColor': '#2196F3',
+                    'fill': False
+                }]
+            }
+
+    @api.depends('form_id')
+    def _compute_form_distribution(self):
+        """Compute form distribution for bar chart"""
+        domain = self._get_dashboard_domain()
+        candidates = self.env['admission.candidate'].search(domain)
+        
+        form_counts = {}
+        for candidate in candidates:
+            form_name = candidate.form_id.name
+            form_counts[form_name] = form_counts.get(form_name, 0) + 1
+        
+        for record in self:
+            record.form_distribution = {
+                'labels': list(form_counts.keys()),
+                'datasets': [{
+                    'label': 'Candidatures par Formulaire',
+                    'data': list(form_counts.values()),
+                    'backgroundColor': '#4CAF50'
+                }]
+            }
+
+    @api.depends('academic_level')
+    def _compute_academic_level_distribution(self):
+        """Compute academic level distribution for bar chart"""
+        domain = self._get_dashboard_domain()
+        candidates = self.env['admission.candidate'].search(domain)
+        
+        level_counts = {}
+        level_labels = dict(self._fields['academic_level'].selection)
+        
+        for level, _ in self._fields['academic_level'].selection:
+            count = len(candidates.filtered(lambda r: r.academic_level == level))
+            if count > 0:  # Only include non-zero counts
+                level_counts[level_labels[level]] = count
+        
+        for record in self:
+            record.academic_level_distribution = {
+                'labels': list(level_counts.keys()),
+                'datasets': [{
+                    'label': 'Distribution par Niveau',
+                    'data': list(level_counts.values()),
+                    'backgroundColor': '#FF9800'
+                }]
+            } 

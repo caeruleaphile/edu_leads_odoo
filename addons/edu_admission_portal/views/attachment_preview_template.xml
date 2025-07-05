@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="attachment_preview" name="Document Preview">
+        <div class="o_attachment_preview">
+            <!-- Barre d'outils -->
+            <div class="o_attachment_preview_toolbar bg-light p-2 border-bottom">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <span class="h5 mb-0" t-esc="attachment.name"/>
+                    </div>
+                    <div class="col-auto">
+                        <div class="btn-group">
+                            <a t-att-href="'/web/content/%s?download=true' % attachment.id" 
+                               class="btn btn-secondary">
+                                <i class="fa fa-download"/> Télécharger
+                            </a>
+                            <button type="button" class="btn btn-secondary" 
+                                    t-att-data-attachment-id="attachment.id"
+                                    onclick="window.print();">
+                                <i class="fa fa-print"/> Imprimer
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Zone de prévisualisation -->
+            <div class="o_attachment_preview_content p-3">
+                <!-- PDF -->
+                <t t-if="attachment.mimetype == 'application/pdf'">
+                    <iframe t-att-src="'/web/content/%s?download=false' % attachment.id"
+                            class="w-100 border-0" style="height: 80vh;"/>
+                </t>
+                
+                <!-- Images -->
+                <t t-elif="attachment.mimetype.startswith('image/')">
+                    <div class="text-center">
+                        <img t-att-src="'/web/content/%s' % attachment.id"
+                             class="img-fluid"
+                             style="max-height: 80vh;"/>
+                    </div>
+                </t>
+                
+                <!-- Message si prévisualisation non disponible -->
+                <t t-else="">
+                    <div class="alert alert-warning">
+                        <i class="fa fa-exclamation-triangle"/> 
+                        La prévisualisation n'est pas disponible pour ce type de fichier.
+                    </div>
+                </t>
+            </div>
+
+            <!-- Informations sur le document -->
+            <div class="o_attachment_preview_info bg-light p-2 border-top">
+                <div class="row">
+                    <div class="col-sm-6">
+                        <small>
+                            <strong>Type:</strong> 
+                            <span t-field="attachment.mimetype"/>
+                        </small>
+                    </div>
+                    <div class="col-sm-6">
+                        <small>
+                            <strong>Taille:</strong> 
+                            <span t-field="attachment.file_size_human"/>
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+</odoo> 

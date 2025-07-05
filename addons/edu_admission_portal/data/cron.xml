@@ -26,5 +26,31 @@
             <field name="doall" eval="False"/>
             <field name="active" eval="False"/>
         </record>
+
+        <!-- Tâche CRON pour vérifier la complétude des dossiers -->
+        <record id="ir_cron_check_candidate_completeness" model="ir.cron">
+            <field name="name">Vérification automatique de la complétude des dossiers</field>
+            <field name="model_id" ref="model_admission_candidate"/>
+            <field name="state">code</field>
+            <field name="code">model._auto_check_completeness()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">hours</field>
+            <field name="numbercall">-1</field>
+            <field name="doall" eval="False"/>
+            <field name="active" eval="True"/>
+        </record>
+
+        <!-- Tâche CRON pour nettoyer les candidatures incomplètes -->
+        <record id="ir_cron_clean_incomplete_candidates" model="ir.cron">
+            <field name="name">Nettoyage des candidatures incomplètes</field>
+            <field name="model_id" ref="model_admission_candidate"/>
+            <field name="state">code</field>
+            <field name="code">model._clean_incomplete_candidates(days=30)</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="numbercall">-1</field>
+            <field name="doall" eval="False"/>
+            <field name="active" eval="True"/>
+        </record>
     </data>
 </odoo> 

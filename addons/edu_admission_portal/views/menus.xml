@@ -16,7 +16,7 @@
     <menuitem id="menu_admission_candidates"
               name="Candidats"
               parent="menu_admission_root"
-              action="action_admission_candidate"
+              action="action_admission_candidates"
               sequence="10"/>
 
     <!-- Menu des formulaires -->
@@ -38,4 +38,22 @@
               parent="menu_admission_configuration"
               action="action_limesurvey_server"
               sequence="10"/>
+
+    <menuitem id="menu_admission_candidate_stage"
+              name="Étapes du Pipeline"
+              parent="menu_admission_configuration"
+              action="action_admission_candidate_stage"
+              sequence="15"/>
+
+    <menuitem id="menu_admission_form_mapping"
+              name="Mappings de Formulaires"
+              parent="menu_admission_configuration"
+              action="action_admission_form_mapping"
+              sequence="20"/>
+
+    <menuitem id="menu_admission_import_batch"
+              name="Historique des Imports"
+              parent="menu_admission_configuration"
+              action="action_admission_import_batch"
+              sequence="30"/>
 </odoo> 
